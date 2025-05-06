@@ -1,0 +1,88 @@
+[
+    {
+      "name": "Weekly Grocery List",
+      "date_created": "2025-05-01 09:00:00",
+      "items": [
+        {
+          "item_text": "Milk (1 gallon)",
+          "checked": false
+        },
+        {
+          "item_text": "Eggs (1 dozen)",
+          "checked": true
+        },
+        {
+          "item_text": "Whole wheat bread",
+          "checked": false
+        },
+        {
+          "item_text": "Bananas",
+          "checked": false
+        },
+        {
+          "item_text": "Spinach",
+          "checked": true
+        },
+        {
+          "item_text": "Chicken breasts",
+          "checked": false
+        }
+      ]
+    },
+    {
+      "name": "Camping Trip Supplies",
+      "date_created": "2025-05-02 14:30:00",
+      "items": [
+        {
+          "item_text": "Marshmallows",
+          "checked": false
+        },
+        {
+          "item_text": "Graham crackers",
+          "checked": false
+        },
+        {
+          "item_text": "Chocolate bars",
+          "checked": false
+        },
+        {
+          "item_text": "Bottled water",
+          "checked": false
+        },
+        {
+          "item_text": "Hot dogs",
+          "checked": false
+        },
+        {
+          "item_text": "Buns",
+          "checked": false
+        }
+      ]
+    },
+    {
+      "name": "Office Supplies",
+      "date_created": "2025-05-03 11:15:00",
+      "items": [
+        {
+          "item_text": "Printer paper",
+          "checked": false
+        },
+        {
+          "item_text": "Staples",
+          "checked": false
+        },
+        {
+          "item_text": "Pens",
+          "checked": true
+        },
+        {
+          "item_text": "Highlighters",
+          "checked": false
+        },
+        {
+          "item_text": "Sticky notes",
+          "checked": false
+        }
+      ]
+    }
+  ]

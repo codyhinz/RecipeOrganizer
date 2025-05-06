@@ -1,0 +1,104 @@
+[
+    {
+        "id": 4,
+        "name": "Buffalo Chicken Stuffed Peppers",
+        "instructions": "Preheat the oven to 350\u00b0F/180\u00b0C.\nPrep the peppers, slice them in half, and remove the membrane and the seeds.\nPlace on a baking tray or in a casserole dish, drizzle with olive oil and brush it all over the peppers. Season with salt and pepper. Cook in the oven until they\u2019re just undercooked, about 10 minutes.\nAs the peppers are being roasted, prepare the filling. In a large bowl, combine the shredded chicken with buffalo sauce, ranch dressing, mozzarella cheese, garlic powder, and onion powder. Stir to combine.\nRemove the peppers from the oven, and carefully fill them with the prepared filling. Return to the oven and cook for 5 more minutes, then place under the broiler for 1-2 minutes.\nRemove from the oven, and top with crumbled blue cheese and/or ranch dressing, and sliced green onions.",
+        "favorite": false,
+        "date_added": "2025-04-26 17:08:32",
+        "ingredients": [
+            "Bell Peppers",
+            "Olive Oil",
+            "Salt",
+            "Black Pepper",
+            "Shredded Chicken",
+            "Buffalo Sauce",
+            "Ranch",
+            "Shredded Mozzarella Cheese",
+            "Garlic Powder",
+            "Onion Powder",
+            "Green Onions",
+            "Crumbled Blue Cheese"
+        ],
+        "categories": [
+            "Lunch",
+            "Dinner",
+            "Snack",
+            "Main Course",
+            "Side Dish"
+        ]
+    },
+    {
+        "id": 6,
+        "name": "Cookies",
+        "instructions": "Bake them together.",
+        "favorite": true,
+        "date_added": "2025-05-05 16:53:58",
+        "ingredients": [
+            "Sugar",
+            "Milk",
+            "Flour",
+            "Chocolate"
+        ],
+        "categories": [
+            "Baked Goods"
+        ]
+    },
+    {
+        "id": 5,
+        "name": "Fish Stew",
+        "instructions": "Cook the fish together with the broth and onions.",
+        "favorite": false,
+        "date_added": "2025-04-26 17:53:55",
+        "ingredients": [
+            "Fish",
+            "Broth",
+            "Onions"
+        ],
+        "categories": [
+            "Breakfast",
+            "Beverage"
+        ]
+    },
+    {
+        "id": 3,
+        "name": "Quick Guacamole",
+        "instructions": "1. Mash the avocados in a bowl.\n2. Stir in lime juice, salt, and garlic powder.\n3. Mix in onion, tomato, and cilantro.\n4. Season to taste with additional salt and lime juice if needed.",
+        "favorite": true,
+        "date_added": "2025-04-26 17:05:40",
+        "ingredients": [
+            "2 ripe avocados",
+            "1 tablespoon lime juice",
+            "1/4 teaspoon salt",
+            "1/4 teaspoon garlic powder",
+            "2 tablespoons finely diced red onion",
+            "1 small tomato, diced",
+            "2 tablespoons chopped cilantro"
+        ],
+        "categories": [
+            "Appetizer",
+            "Snack",
+            "Mexican"
+        ]
+    },
+    {
+        "id": 2,
+        "name": "Simple Tomato Pasta",
+        "instructions": "1. Cook pasta according to package directions.\n2. Heat olive oil in a pan over medium heat.\n3. Add garlic and cook until fragrant.\n4. Add tomatoes and cook for 5 minutes.\n5. Add basil, salt, and pepper.\n6. Drain pasta and toss with sauce.\n7. Top with grated parmesan.",
+        "favorite": false,
+        "date_added": "2025-04-26 17:02:58",
+        "ingredients": [
+            "8 oz spaghetti",
+            "2 tablespoons olive oil",
+            "3 cloves garlic, minced",
+            "1 can (14.5 oz) diced tomatoes",
+            "1/4 cup fresh basil, chopped",
+            "Salt and pepper to taste",
+            "Grated parmesan cheese"
+        ],
+        "categories": [
+            "Dinner",
+            "Main Course",
+            "Italian"
+        ]
+    }
+]

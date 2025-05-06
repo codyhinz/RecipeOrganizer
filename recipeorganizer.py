@@ -1,26 +1,25 @@
 """
-Recipe Organization System (Simplified)
----------------------------------------
+Simplified Recipe Organization System
 A streamlined application for managing recipes and shopping lists.
 
-Features:
-- Recipe management (add, edit, view, search)
-- Shopping list generation
-- Recipe import/export
-- Paper-like user interface
-
 Author: Cody Hinz
-Date: April 18, 2025
+Date: May 5th, 2025
 """
 
 import os
 import sys
-import json
 import sqlite3
 import datetime
+import customtkinter as ctk
+from tkinter import messagebox, simpledialog
+import tkinter.filedialog as filedialog
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog, simpledialog
-from tkinter.scrolledtext import ScrolledText
+from customtkinter import CTkScrollableFrame, CTkTextbox
+import json
+
+# Configure appearance mode and color theme
+ctk.set_appearance_mode("System")  # Options: "System", "Dark", "Light"
+ctk.set_default_color_theme("blue")  # Options: "blue", "green", "dark-blue"
 
 class RecipeDatabase:
     """
@@ -28,12 +27,7 @@ class RecipeDatabase:
     """
     
     def __init__(self, db_path='recipe_system.db'):
-        """
-        Initialize the database connection and create tables if they don't exist.
-        
-        Args:
-            db_path (str): Path to the SQLite database file
-        """
+        """Initialize the database connection and create tables if they don't exist."""
         # Store the database path
         self.db_path = db_path
         
@@ -45,22 +39,13 @@ class RecipeDatabase:
         self._create_tables()
     
     def _create_tables(self):
-        """
-        Create all necessary tables for the application if they don't already exist.
-        """
-        # Create recipes table
+        """Create all necessary tables for the application if they don't already exist."""
+        # Create recipes table (simplified)
         self.cursor.execute('''
         CREATE TABLE IF NOT EXISTS recipes (
             id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
-            description TEXT,
             instructions TEXT,
-            prep_time INTEGER,
-            cook_time INTEGER,
-            servings INTEGER,
-            difficulty TEXT,
-            source TEXT,
-            notes TEXT,
             favorite BOOLEAN DEFAULT 0,
             date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -85,46 +70,13 @@ class RecipeDatabase:
         )
         ''')
         
-        # Create tags table
-        self.cursor.execute('''
-        CREATE TABLE IF NOT EXISTS tags (
-            id INTEGER PRIMARY KEY,
-            name TEXT NOT NULL UNIQUE
-        )
-        ''')
-        
-        # Create recipe_tags table (many-to-many relationship)
-        self.cursor.execute('''
-        CREATE TABLE IF NOT EXISTS recipe_tags (
-            recipe_id INTEGER,
-            tag_id INTEGER,
-            PRIMARY KEY (recipe_id, tag_id),
-            FOREIGN KEY (recipe_id) REFERENCES recipes (id) ON DELETE CASCADE,
-            FOREIGN KEY (tag_id) REFERENCES tags (id) ON DELETE CASCADE
-        )
-        ''')
-        
-        # Create ingredients table
-        self.cursor.execute('''
-        CREATE TABLE IF NOT EXISTS ingredients (
-            id INTEGER PRIMARY KEY,
-            name TEXT NOT NULL UNIQUE,
-            category TEXT,
-            unit TEXT
-        )
-        ''')
-        
-        # Create recipe_ingredients table (many-to-many relationship with quantity)
+        # Create ingredients table (simplified to just a string)
         self.cursor.execute('''
         CREATE TABLE IF NOT EXISTS recipe_ingredients (
+            id INTEGER PRIMARY KEY,
             recipe_id INTEGER,
-            ingredient_id INTEGER,
-            quantity REAL,
-            unit TEXT,
-            notes TEXT,
-            PRIMARY KEY (recipe_id, ingredient_id),
-            FOREIGN KEY (recipe_id) REFERENCES recipes (id) ON DELETE CASCADE,
-            FOREIGN KEY (ingredient_id) REFERENCES ingredients (id) ON DELETE CASCADE
+            ingredient_text TEXT,
+            FOREIGN KEY (recipe_id) REFERENCES recipes (id) ON DELETE CASCADE
         )
         ''')
         
@@ -133,23 +85,18 @@ class RecipeDatabase:
         CREATE TABLE IF NOT EXISTS shopping_lists (
             id INTEGER PRIMARY KEY,
             name TEXT NOT NULL,
-            date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            notes TEXT
+            date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
         ''')
         
-        # Create shopping_list_items table
+        # Create shopping_list_items table (simplified)
         self.cursor.execute('''
         CREATE TABLE IF NOT EXISTS shopping_list_items (
             id INTEGER PRIMARY KEY,
             shopping_list_id INTEGER,
-            ingredient_id INTEGER,
-            quantity REAL,
-            unit TEXT,
+            item_text TEXT,
             checked BOOLEAN DEFAULT 0,
-            notes TEXT,
-            FOREIGN KEY (shopping_list_id) REFERENCES shopping_lists (id) ON DELETE CASCADE,
-            FOREIGN KEY (ingredient_id) REFERENCES ingredients (id) ON DELETE SET NULL
+            FOREIGN KEY (shopping_list_id) REFERENCES shopping_lists (id) ON DELETE CASCADE
         )
         ''')
         
@@ -165,18 +112,6 @@ class RecipeDatabase:
             default_categories
         )
         
-        # Insert some default tags
-        default_tags = [
-            ('Vegetarian',), ('Vegan',), ('Gluten-Free',), ('Dairy-Free',),
-            ('Nut-Free',), ('Low-Carb',), ('High-Protein',), ('Quick',),
-            ('Easy',), ('Budget-Friendly',), ('One-Pot',), ('Kid-Friendly',)
-        ]
-        
-        self.cursor.executemany(
-            'INSERT OR IGNORE INTO tags (name) VALUES (?)', 
-            default_tags
-        )
-        
         # Commit changes
         self.conn.commit()
     
@@ -187,37 +122,17 @@ class RecipeDatabase:
     
     # Recipe CRUD operations
     def add_recipe(self, recipe_data):
-        """
-        Add a new recipe to the database.
-        
-        Args:
-            recipe_data (dict): Dictionary containing recipe information
-                Required keys: 'name', 'instructions'
-                Optional keys: 'description', 'prep_time', 'cook_time', 'servings',
-                               'difficulty', 'source', 'notes', 'favorite'
-        
-        Returns:
-            int: ID of the newly added recipe
-        """
+        """Add a new recipe to the database."""
         # Extract recipe data
         name = recipe_data.get('name')
-        description = recipe_data.get('description', '')
         instructions = recipe_data.get('instructions', '')
-        prep_time = recipe_data.get('prep_time', 0)
-        cook_time = recipe_data.get('cook_time', 0)
-        servings = recipe_data.get('servings', 1)
-        difficulty = recipe_data.get('difficulty', 'Medium')
-        source = recipe_data.get('source', '')
-        notes = recipe_data.get('notes', '')
         favorite = 1 if recipe_data.get('favorite', False) else 0
         
         # Insert recipe into database
         self.cursor.execute('''
-        INSERT INTO recipes (name, description, instructions, prep_time, cook_time, 
-                           servings, difficulty, source, notes, favorite)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (name, description, instructions, prep_time, cook_time, 
-              servings, difficulty, source, notes, favorite))
+        INSERT INTO recipes (name, instructions, favorite)
+        VALUES (?, ?, ?)
+        ''', (name, instructions, favorite))
         
         # Get the ID of the newly inserted recipe
         recipe_id = self.cursor.lastrowid
@@ -241,52 +156,18 @@ class RecipeDatabase:
                 VALUES (?, ?)
                 ''', (recipe_id, category_id))
         
-        # Add tags if provided
-        if 'tags' in recipe_data and recipe_data['tags']:
-            for tag_name in recipe_data['tags']:
-                # Get or create tag
-                self.cursor.execute('SELECT id FROM tags WHERE name = ?', (tag_name,))
-                result = self.cursor.fetchone()
-                
-                if result:
-                    tag_id = result[0]
-                else:
-                    self.cursor.execute('INSERT INTO tags (name) VALUES (?)', (tag_name,))
-                    tag_id = self.cursor.lastrowid
-                
-                # Link recipe to tag
-                self.cursor.execute('''
-                INSERT OR IGNORE INTO recipe_tags (recipe_id, tag_id)
-                VALUES (?, ?)
-                ''', (recipe_id, tag_id))
-        
         # Add ingredients if provided
         if 'ingredients' in recipe_data and recipe_data['ingredients']:
-            for ingredient in recipe_data['ingredients']:
-                ing_name = ingredient.get('name')
-                ing_quantity = ingredient.get('quantity', 0)
-                ing_unit = ingredient.get('unit', '')
-                ing_notes = ingredient.get('notes', '')
+            for ingredient_text in recipe_data['ingredients']:
+                # Skip empty ingredients
+                if not ingredient_text.strip():
+                    continue
                 
-                # Get or create ingredient
-                self.cursor.execute('SELECT id FROM ingredients WHERE name = ?', (ing_name,))
-                result = self.cursor.fetchone()
-                
-                if result:
-                    ingredient_id = result[0]
-                else:
-                    ing_category = ingredient.get('category', '')
-                    self.cursor.execute('''
-                    INSERT INTO ingredients (name, category, unit)
-                    VALUES (?, ?, ?)
-                    ''', (ing_name, ing_category, ing_unit))
-                    ingredient_id = self.cursor.lastrowid
-                
-                # Link recipe to ingredient with quantity
+                # Add ingredient
                 self.cursor.execute('''
-                INSERT INTO recipe_ingredients (recipe_id, ingredient_id, quantity, unit, notes)
-                VALUES (?, ?, ?, ?, ?)
-                ''', (recipe_id, ingredient_id, ing_quantity, ing_unit, ing_notes))
+                INSERT INTO recipe_ingredients (recipe_id, ingredient_text)
+                VALUES (?, ?)
+                ''', (recipe_id, ingredient_text.strip()))
         
         # Commit the transaction
         self.conn.commit()
@@ -294,19 +175,10 @@ class RecipeDatabase:
         return recipe_id
     
     def get_recipe(self, recipe_id):
-        """
-        Retrieve a recipe by its ID.
-        
-        Args:
-            recipe_id (int): ID of the recipe to retrieve
-            
-        Returns:
-            dict: Recipe data including ingredients, categories, and tags
-        """
+        """Retrieve a recipe by its ID."""
         # Get recipe basic information
         self.cursor.execute('''
-        SELECT id, name, description, instructions, prep_time, cook_time, 
-               servings, difficulty, source, notes, favorite, date_added
+        SELECT id, name, instructions, favorite, date_added
         FROM recipes
         WHERE id = ?
         ''', (recipe_id,))
@@ -320,41 +192,22 @@ class RecipeDatabase:
         recipe = {
             'id': recipe_row[0],
             'name': recipe_row[1],
-            'description': recipe_row[2],
-            'instructions': recipe_row[3],
-            'prep_time': recipe_row[4],
-            'cook_time': recipe_row[5],
-            'servings': recipe_row[6],
-            'difficulty': recipe_row[7],
-            'source': recipe_row[8],
-            'notes': recipe_row[9],
-            'favorite': bool(recipe_row[10]),
-            'date_added': recipe_row[11],
+            'instructions': recipe_row[2],
+            'favorite': bool(recipe_row[3]),
+            'date_added': recipe_row[4],
             'ingredients': [],
-            'categories': [],
-            'tags': []
+            'categories': []
         }
         
         # Get ingredients
         self.cursor.execute('''
-        SELECT i.id, i.name, ri.quantity, ri.unit, ri.notes, i.category
-        FROM recipe_ingredients ri
-        JOIN ingredients i ON ri.ingredient_id = i.id
-        WHERE ri.recipe_id = ?
+        SELECT ingredient_text
+        FROM recipe_ingredients
+        WHERE recipe_id = ?
         ''', (recipe_id,))
         
         ingredients_rows = self.cursor.fetchall()
-        
-        for row in ingredients_rows:
-            ingredient = {
-                'id': row[0],
-                'name': row[1],
-                'quantity': row[2],
-                'unit': row[3],
-                'notes': row[4],
-                'category': row[5]
-            }
-            recipe['ingredients'].append(ingredient)
+        recipe['ingredients'] = [row[0] for row in ingredients_rows]
         
         # Get categories
         self.cursor.execute('''
@@ -367,30 +220,10 @@ class RecipeDatabase:
         categories_rows = self.cursor.fetchall()
         recipe['categories'] = [row[0] for row in categories_rows]
         
-        # Get tags
-        self.cursor.execute('''
-        SELECT t.name
-        FROM recipe_tags rt
-        JOIN tags t ON rt.tag_id = t.id
-        WHERE rt.recipe_id = ?
-        ''', (recipe_id,))
-        
-        tags_rows = self.cursor.fetchall()
-        recipe['tags'] = [row[0] for row in tags_rows]
-        
         return recipe
     
     def update_recipe(self, recipe_id, recipe_data):
-        """
-        Update an existing recipe.
-        
-        Args:
-            recipe_id (int): ID of the recipe to update
-            recipe_data (dict): Updated recipe information
-            
-        Returns:
-            bool: True if update was successful, False otherwise
-        """
+        """Update an existing recipe."""
         # Check if recipe exists
         self.cursor.execute('SELECT id FROM recipes WHERE id = ?', (recipe_id,))
         if not self.cursor.fetchone():
@@ -400,26 +233,12 @@ class RecipeDatabase:
         self.cursor.execute('''
         UPDATE recipes SET
             name = ?,
-            description = ?,
             instructions = ?,
-            prep_time = ?,
-            cook_time = ?,
-            servings = ?,
-            difficulty = ?,
-            source = ?,
-            notes = ?,
             favorite = ?
         WHERE id = ?
         ''', (
             recipe_data.get('name'),
-            recipe_data.get('description', ''),
             recipe_data.get('instructions', ''),
-            recipe_data.get('prep_time', 0),
-            recipe_data.get('cook_time', 0),
-            recipe_data.get('servings', 1),
-            recipe_data.get('difficulty', 'Medium'),
-            recipe_data.get('source', ''),
-            recipe_data.get('notes', ''),
             1 if recipe_data.get('favorite', False) else 0,
             recipe_id
         ))
@@ -447,76 +266,29 @@ class RecipeDatabase:
                 VALUES (?, ?)
                 ''', (recipe_id, category_id))
         
-        # Update tags (delete all and reinsert)
-        if 'tags' in recipe_data:
-            # Remove existing tags
-            self.cursor.execute('DELETE FROM recipe_tags WHERE recipe_id = ?', (recipe_id,))
-            
-            # Add new tags
-            for tag_name in recipe_data['tags']:
-                # Get or create tag
-                self.cursor.execute('SELECT id FROM tags WHERE name = ?', (tag_name,))
-                result = self.cursor.fetchone()
-                
-                if result:
-                    tag_id = result[0]
-                else:
-                    self.cursor.execute('INSERT INTO tags (name) VALUES (?)', (tag_name,))
-                    tag_id = self.cursor.lastrowid
-                
-                # Link recipe to tag
-                self.cursor.execute('''
-                INSERT OR IGNORE INTO recipe_tags (recipe_id, tag_id)
-                VALUES (?, ?)
-                ''', (recipe_id, tag_id))
-        
         # Update ingredients (delete all and reinsert)
         if 'ingredients' in recipe_data:
-            # Remove existing ingredient links
+            # Remove existing ingredients
             self.cursor.execute('DELETE FROM recipe_ingredients WHERE recipe_id = ?', (recipe_id,))
             
             # Add new ingredients
-            for ingredient in recipe_data['ingredients']:
-                ing_name = ingredient.get('name')
-                ing_quantity = ingredient.get('quantity', 0)
-                ing_unit = ingredient.get('unit', '')
-                ing_notes = ingredient.get('notes', '')
+            for ingredient_text in recipe_data['ingredients']:
+                # Skip empty ingredients
+                if not ingredient_text.strip():
+                    continue
                 
-                # Get or create ingredient
-                self.cursor.execute('SELECT id FROM ingredients WHERE name = ?', (ing_name,))
-                result = self.cursor.fetchone()
-                
-                if result:
-                    ingredient_id = result[0]
-                else:
-                    ing_category = ingredient.get('category', '')
-                    self.cursor.execute('''
-                    INSERT INTO ingredients (name, category, unit)
-                    VALUES (?, ?, ?)
-                    ''', (ing_name, ing_category, ing_unit))
-                    ingredient_id = self.cursor.lastrowid
-                
-                # Link recipe to ingredient with quantity
+                # Add ingredient
                 self.cursor.execute('''
-                INSERT INTO recipe_ingredients (recipe_id, ingredient_id, quantity, unit, notes)
-                VALUES (?, ?, ?, ?, ?)
-                ''', (recipe_id, ingredient_id, ing_quantity, ing_unit, ing_notes))
+                INSERT INTO recipe_ingredients (recipe_id, ingredient_text)
+                VALUES (?, ?)
+                ''', (recipe_id, ingredient_text.strip()))
         
         # Commit the transaction
         self.conn.commit()
         
         return True
-    
     def delete_recipe(self, recipe_id):
-        """
-        Delete a recipe from the database.
-        
-        Args:
-            recipe_id (int): ID of the recipe to delete
-            
-        Returns:
-            bool: True if deletion was successful, False otherwise
-        """
+        """Delete a recipe from the database."""
         # Check if recipe exists
         self.cursor.execute('SELECT id FROM recipes WHERE id = ?', (recipe_id,))
         if not self.cursor.fetchone():
@@ -530,23 +302,11 @@ class RecipeDatabase:
         
         return True
     
-    def search_recipes(self, query=None, categories=None, tags=None, favorite=None):
-        """
-        Search for recipes based on various criteria.
-        
-        Args:
-            query (str, optional): Search term for recipe name or description
-            categories (list, optional): List of category names to filter by
-            tags (list, optional): List of tag names to filter by
-            favorite (bool, optional): Filter by favorite status
-            
-        Returns:
-            list: List of recipe dictionaries matching the criteria
-        """
+    def search_recipes(self, query=None, categories=None, favorite=None):
+        """Search for recipes based on various criteria."""
         # Base query
         sql = '''
-        SELECT DISTINCT r.id, r.name, r.description, r.prep_time, r.cook_time, 
-               r.difficulty, r.favorite
+        SELECT DISTINCT r.id, r.name, r.favorite
         FROM recipes r
         '''
         
@@ -563,57 +323,47 @@ class RecipeDatabase:
             conditions.append('c.name IN ({})'.format(','.join(['?'] * len(categories))))
             params.extend(categories)
         
-        if tags:
-            sql += '''
-            JOIN recipe_tags rt ON r.id = rt.recipe_id
-            JOIN tags t ON rt.tag_id = t.id
-            '''
-            conditions.append('t.name IN ({})'.format(','.join(['?'] * len(tags))))
-            params.extend(tags)
-        
-        # Add text search condition
+        # Add text search condition - ONLY SEARCH RECIPE NAMES
         if query:
-            conditions.append('(r.name LIKE ? OR r.description LIKE ? OR r.instructions LIKE ?)')
+            conditions.append('r.name LIKE ?')
             search_term = f'%{query}%'
-            params.extend([search_term, search_term, search_term])
+            params.append(search_term)
         
         # Add favorite condition
-        if favorite is not None:
-            conditions.append('r.favorite = ?')
-            params.append(1 if favorite else 0)
+        if favorite:
+            conditions.append('r.favorite = 1')
         
         # Add WHERE clause if there are conditions
         if conditions:
             sql += ' WHERE ' + ' AND '.join(conditions)
+        
+        # Add ORDER BY
+        sql += ' ORDER BY r.name'
         
         # Execute the query
         self.cursor.execute(sql, params)
         
         # Process results
         recipes = []
+        recipe_ids = set()  # To avoid duplicates from joins
+        
         for row in self.cursor.fetchall():
-            recipe = {
-                'id': row[0],
-                'name': row[1],
-                'description': row[2],
-                'prep_time': row[3],
-                'cook_time': row[4],
-                'difficulty': row[5],
-                'favorite': bool(row[6])
-            }
-            recipes.append(recipe)
+            recipe_id = row[0]
+            if recipe_id not in recipe_ids:
+                recipe_ids.add(recipe_id)
+                recipe = {
+                    'id': recipe_id,
+                    'name': row[1],
+                    'favorite': bool(row[2])
+                }
+                recipes.append(recipe)
         
         return recipes
     
     def get_all_recipes(self):
-        """
-        Get all recipes in the database.
-        
-        Returns:
-            list: List of all recipe dictionaries
-        """
+        """Get all recipes in the database."""
         self.cursor.execute('''
-        SELECT id, name, description, prep_time, cook_time, difficulty, favorite
+        SELECT id, name, favorite
         FROM recipes
         ORDER BY name
         ''')
@@ -623,88 +373,42 @@ class RecipeDatabase:
             recipe = {
                 'id': row[0],
                 'name': row[1],
-                'description': row[2],
-                'prep_time': row[3],
-                'cook_time': row[4],
-                'difficulty': row[5],
-                'favorite': bool(row[6])
+                'favorite': bool(row[2])
             }
             recipes.append(recipe)
         
         return recipes
     
-    # Category and tag operations
     def get_all_categories(self):
-        """
-        Get all categories.
-        
-        Returns:
-            list: List of category name strings
-        """
+        """Get all categories."""
         self.cursor.execute('SELECT name FROM categories ORDER BY name')
         return [row[0] for row in self.cursor.fetchall()]
     
-    def get_all_tags(self):
-        """
-        Get all tags.
-        
-        Returns:
-            list: List of tag name strings
-        """
-        self.cursor.execute('SELECT name FROM tags ORDER BY name')
-        return [row[0] for row in self.cursor.fetchall()]
-    
     # Shopping list operations
-    def create_shopping_list(self, name, notes=''):
-        """
-        Create a new shopping list.
-        
-        Args:
-            name (str): Shopping list name
-            notes (str, optional): Additional notes
-            
-        Returns:
-            int: ID of the newly created shopping list
-        """
+    def create_shopping_list(self, name):
+        """Create a new shopping list."""
         self.cursor.execute('''
-        INSERT INTO shopping_lists (name, notes)
-        VALUES (?, ?)
-        ''', (name, notes))
+        INSERT INTO shopping_lists (name)
+        VALUES (?)
+        ''', (name,))
         
         self.conn.commit()
         return self.cursor.lastrowid
     
-    def add_shopping_list_item(self, shopping_list_id, ingredient_id, quantity, unit, notes=''):
-        """
-        Add an item to a shopping list.
-        
-        Args:
-            shopping_list_id (int): ID of the shopping list
-            ingredient_id (int): ID of the ingredient
-            quantity (float): Quantity of the ingredient
-            unit (str): Unit of measurement
-            notes (str, optional): Additional notes
-            
-        Returns:
-            int: ID of the newly added item
-        """
+    def add_shopping_list_item(self, shopping_list_id, item_text):
+        """Add an item to a shopping list."""
         self.cursor.execute('''
-        INSERT INTO shopping_list_items (shopping_list_id, ingredient_id, quantity, unit, notes)
-        VALUES (?, ?, ?, ?, ?)
-        ''', (shopping_list_id, ingredient_id, quantity, unit, notes))
+        INSERT INTO shopping_list_items (shopping_list_id, item_text)
+        VALUES (?, ?)
+        ''', (shopping_list_id, item_text))
         
         self.conn.commit()
         return self.cursor.lastrowid
     
     def get_shopping_lists(self):
-        """
-        Get all shopping lists.
-        
-        Returns:
-            list: List of shopping list dictionaries
-        """
+        """Get all shopping lists."""
         self.cursor.execute('''
-        SELECT id, name, date_created, notes
+        SELECT id, name, date_created
         FROM shopping_lists
         ORDER BY date_created DESC
         ''')
@@ -714,26 +418,17 @@ class RecipeDatabase:
             shopping_list = {
                 'id': row[0],
                 'name': row[1],
-                'date_created': row[2],
-                'notes': row[3]
+                'date_created': row[2]
             }
             shopping_lists.append(shopping_list)
         
         return shopping_lists
     
     def get_shopping_list(self, shopping_list_id):
-        """
-        Get a shopping list by ID, including its items.
-        
-        Args:
-            shopping_list_id (int): ID of the shopping list
-            
-        Returns:
-            dict: Shopping list dictionary with items
-        """
+        """Get a shopping list by ID, including its items."""
         # Get shopping list info
         self.cursor.execute('''
-        SELECT id, name, date_created, notes
+        SELECT id, name, date_created
         FROM shopping_lists
         WHERE id = ?
         ''', (shopping_list_id,))
@@ -746,48 +441,29 @@ class RecipeDatabase:
             'id': row[0],
             'name': row[1],
             'date_created': row[2],
-            'notes': row[3],
             'items': []
         }
         
         # Get shopping list items
         self.cursor.execute('''
-        SELECT sli.id, sli.ingredient_id, i.name, sli.quantity, sli.unit, 
-               sli.checked, sli.notes, i.category
-        FROM shopping_list_items sli
-        JOIN ingredients i ON sli.ingredient_id = i.id
-        WHERE sli.shopping_list_id = ?
-        ORDER BY i.category, i.name
+        SELECT id, item_text, checked
+        FROM shopping_list_items
+        WHERE shopping_list_id = ?
+        ORDER BY id
         ''', (shopping_list_id,))
         
         for row in self.cursor.fetchall():
             item = {
                 'id': row[0],
-                'ingredient_id': row[1],
-                'name': row[2],
-                'quantity': row[3],
-                'unit': row[4],
-                'checked': bool(row[5]),
-                'notes': row[6],
-                'category': row[7]
+                'item_text': row[1],
+                'checked': bool(row[2])
             }
             shopping_list['items'].append(item)
         
         return shopping_list
     
-    def update_shopping_list_item(self, item_id, checked=None, quantity=None, notes=None):
-        """
-        Update a shopping list item.
-        
-        Args:
-            item_id (int): ID of the item to update
-            checked (bool, optional): Whether the item is checked off
-            quantity (float, optional): Updated quantity
-            notes (str, optional): Updated notes
-            
-        Returns:
-            bool: True if update was successful, False otherwise
-        """
+    def update_shopping_list_item(self, item_id, checked=None, item_text=None):
+        """Update a shopping list item."""
         # Prepare update fields
         update_fields = []
         params = []
@@ -796,13 +472,9 @@ class RecipeDatabase:
             update_fields.append('checked = ?')
             params.append(1 if checked else 0)
         
-        if quantity is not None:
-            update_fields.append('quantity = ?')
-            params.append(quantity)
-        
-        if notes is not None:
-            update_fields.append('notes = ?')
-            params.append(notes)
+        if item_text is not None:
+            update_fields.append('item_text = ?')
+            params.append(item_text)
         
         # If no fields to update, return
         if not update_fields:
@@ -818,98 +490,140 @@ class RecipeDatabase:
         self.conn.commit()
         return True
     
+    def delete_shopping_list_item(self, item_id):
+        """Delete a shopping list item."""
+        self.cursor.execute('DELETE FROM shopping_list_items WHERE id = ?', (item_id,))
+        self.conn.commit()
+        return self.cursor.rowcount > 0
+    
     def delete_shopping_list(self, shopping_list_id):
-        """
-        Delete a shopping list.
-        
-        Args:
-            shopping_list_id (int): ID of the shopping list to delete
-            
-        Returns:
-            bool: True if deletion was successful, False otherwise
-        """
+        """Delete a shopping list."""
         self.cursor.execute('DELETE FROM shopping_lists WHERE id = ?', (shopping_list_id,))
         self.conn.commit()
         return self.cursor.rowcount > 0
     
     def generate_shopping_list_from_recipes(self, recipe_ids, name=None):
-        """
-        Generate a shopping list from selected recipes.
-        
-        Args:
-            recipe_ids (list): List of recipe IDs
-            name (str, optional): Name for the shopping list
-            
-        Returns:
-            int: ID of the newly created shopping list
-        """
+        """Generate a shopping list from selected recipes."""
         # Create default name if not provided
         if not name:
             name = f"Shopping list ({datetime.date.today().strftime('%Y-%m-%d')})"
         
-        # Create shopping list
-        shopping_list_id = self.create_shopping_list(name, f"Generated from selected recipes")
+        # Create a new shopping list
+        shopping_list_id = self.create_shopping_list(name)
         
         # If no recipes, return empty shopping list
         if not recipe_ids:
             return shopping_list_id
         
-        # Get all ingredients from these recipes
-        # This query consolidates ingredients across recipes
+        # Get all ingredients from the selected recipes
         placeholders = ','.join(['?'] * len(recipe_ids))
         self.cursor.execute(f'''
-        SELECT ri.ingredient_id, i.name, SUM(ri.quantity) as total_quantity, ri.unit, i.category
-        FROM recipe_ingredients ri
-        JOIN ingredients i ON ri.ingredient_id = i.id
-        WHERE ri.recipe_id IN ({placeholders})
-        GROUP BY ri.ingredient_id, ri.unit
-        ORDER BY i.category, i.name
+        SELECT ingredient_text
+        FROM recipe_ingredients
+        WHERE recipe_id IN ({placeholders})
         ''', recipe_ids)
         
-        # Add ingredients to the shopping list
+        # Add each ingredient as a shopping list item
         for row in self.cursor.fetchall():
-            ingredient_id = row[0]
-            quantity = row[2]
-            unit = row[3]
-            
-            self.add_shopping_list_item(shopping_list_id, ingredient_id, quantity, unit)
+            self.add_shopping_list_item(shopping_list_id, row[0])
         
         return shopping_list_id
     
-    # Recipe import/export operations
     def export_recipe_to_json(self, recipe_id):
-        """
-        Export a recipe to JSON format.
-        
-        Args:
-            recipe_id (int): ID of the recipe to export
-            
-        Returns:
-            str: JSON string representation of the recipe
-        """
+        """Export a recipe to JSON format."""
         recipe = self.get_recipe(recipe_id)
         if not recipe:
             return None
-        
-        return json.dumps(recipe, indent=2)
     
-    def import_recipe_from_json(self, json_data):
-        """
-        Import a recipe from JSON format.
+    # Return recipe data as a dictionary (ready for JSON conversion)
+        return recipe
+
+    def export_recipes_to_json(self, recipe_ids=None):
+        """Export multiple recipes to JSON format."""
+        if recipe_ids is None:
+            # Get all recipes if no IDs provided
+            recipes = self.get_all_recipes()
+            recipe_ids = [recipe['id'] for recipe in recipes]
         
-        Args:
-            json_data (str): JSON string representation of the recipe
-            
-        Returns:
-            int: ID of the imported recipe
-        """
-        try:
-            recipe_data = json.loads(json_data)
-            return self.add_recipe(recipe_data)
-        except json.JSONDecodeError:
+        result = []
+        for recipe_id in recipe_ids:
+            recipe = self.export_recipe_to_json(recipe_id)
+            if recipe:
+                result.append(recipe)
+        
+        return result
+
+    def import_recipe_from_json(self, recipe_data):
+        """Import a recipe from JSON data."""
+        # Ensure required fields are present
+        if 'name' not in recipe_data:
             return None
+        
+        # Extract recipe ID if present (for update vs. insert)
+        recipe_id = recipe_data.get('id')
+        
+        # Check if recipe already exists
+        if recipe_id:
+            self.cursor.execute('SELECT id FROM recipes WHERE id = ?', (recipe_id,))
+            if self.cursor.fetchone():
+                # Update existing recipe
+                return self.update_recipe(recipe_id, recipe_data)
+        
+        # Insert new recipe
+        return self.add_recipe(recipe_data)
 
+    def export_shopping_list_to_json(self, shopping_list_id):
+        """Export a shopping list to JSON format."""
+        shopping_list = self.get_shopping_list(shopping_list_id)
+        if not shopping_list:
+            return None
+        
+        # Return shopping list data as a dictionary (ready for JSON conversion)
+        return shopping_list
 
+    def export_shopping_lists_to_json(self, shopping_list_ids=None):
+        """Export multiple shopping lists to JSON format."""
+        if shopping_list_ids is None:
+            # Get all shopping lists if no IDs provided
+            shopping_lists = self.get_shopping_lists()
+            shopping_list_ids = [sl['id'] for sl in shopping_lists]
+        
+        result = []
+        for shopping_list_id in shopping_list_ids:
+            shopping_list = self.export_shopping_list_to_json(shopping_list_id)
+            if shopping_list:
+                result.append(shopping_list)
+        
+        return result
+
+    def import_shopping_list_from_json(self, shopping_list_data):
+        """Import a shopping list from JSON data."""
+        # Ensure required fields are present
+        if 'name' not in shopping_list_data:
+            return None
+        
+        # Extract shopping list ID if present (for update vs. insert)
+        shopping_list_id = shopping_list_data.get('id')
+        
+        # Create new shopping list
+        if not shopping_list_id or not self.get_shopping_list(shopping_list_id):
+            shopping_list_id = self.create_shopping_list(shopping_list_data['name'])
+        
+        # Add items if present
+        if 'items' in shopping_list_data and shopping_list_data['items']:
+            for item in shopping_list_data['items']:
+                # Skip if the item doesn't have text
+                if 'item_text' not in item:
+                    continue
+                
+                item_id = self.add_shopping_list_item(shopping_list_id, item['item_text'])
+                
+                # Update checked status if present
+                if 'checked' in item and item_id:
+                    self.update_shopping_list_item(item_id, checked=item['checked'])
+        
+        return shopping_list_id
+    
 class RecipeApp:
     """
     Main application class for the Recipe Organization System.
@@ -917,12 +631,7 @@ class RecipeApp:
     """
     
     def __init__(self, root):
-        """
-        Initialize the Recipe Organization System application.
-        
-        Args:
-            root: The root Tkinter window
-        """
+        """Initialize the Recipe Organization System application."""
         self.root = root
         self.root.title("Recipe Organization System")
         self.root.geometry("1000x700")
@@ -931,69 +640,29 @@ class RecipeApp:
         # Initialize database
         self.db = RecipeDatabase()
         
-        # Set up theme
-        self.setup_theme()
-        
         # Create main container
-        self.main_frame = ttk.Frame(self.root)
-        self.main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        self.main_frame = ctk.CTkFrame(self.root)
+        self.main_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
     def setup_theme(self):
         """Set up the application theme and styling."""
-        style = ttk.Style()
-        
-        # Configure theme
-        style.configure("TFrame", background="#f5f5f5")
-        style.configure("TLabel", background="#f5f5f5", font=("Arial", 10))
-        style.configure("TButton", font=("Arial", 10))
-        style.configure("TNotebook", background="#f5f5f5", tabposition="n")
-        style.configure("TNotebook.Tab", padding=[10, 4], font=("Arial", 10))
-        
-        # Configure headings
-        style.configure("Heading.TLabel", font=("Arial", 14, "bold"))
-        style.configure("Subheading.TLabel", font=("Arial", 12, "bold"))
-        
-        # Configure list styles
-        style.configure("RecipeList.TFrame", background="white", relief="solid", borderwidth=1)
-        style.configure("RecipeListItem.TFrame", background="white")
-        style.configure("RecipeListItem.TLabel", background="white", font=("Arial", 10))
-        
-        # Configure form styles
-        style.configure("Form.TFrame", background="#f5f5f5", padding=10)
-        style.configure("Form.TLabel", background="#f5f5f5", font=("Arial", 10))
-        style.configure("Form.TEntry", font=("Arial", 10))
-        
-        # Configure recipe view styles
-        style.configure("Recipe.TFrame", background="white", relief="solid", borderwidth=1, padding=10)
-        style.configure("Recipe.TLabel", background="white", font=("Arial", 10))
-        style.configure("RecipeTitle.TLabel", background="white", font=("Arial", 16, "bold"))
-        
-        # Configure favorite button
-        style.configure("Favorite.TButton", font=("Arial", 12))
-        
-        # Configure shopping list styles
-        style.configure("ShoppingList.TFrame", background="white", relief="solid", borderwidth=1)
-        style.configure("ShoppingListItem.TFrame", background="white")
-        style.configure("ShoppingListItem.TLabel", background="white", font=("Arial", 10))
-        style.configure("ShoppingListSection.TLabel", background="white", font=("Arial", 11, "bold"))
+        # Custom styling is handled by CustomTkinter through themes
+        # Most styling is now applied directly to widgets
+        pass
     
     def create_widgets(self):
         """Create all the widgets for the application."""
         # Create notebook for tabs
-        self.notebook = ttk.Notebook(self.main_frame)
-        self.notebook.pack(fill=tk.BOTH, expand=True)
+        self.notebook = ctk.CTkTabview(self.main_frame)
+        self.notebook.pack(fill="both", expand=True)
         
-        # Create recipe tab
-        self.recipes_tab = ttk.Frame(self.notebook)
-        self.notebook.add(self.recipes_tab, text="Recipes")
+        # Create tabs
+        self.recipes_tab = self.notebook.add("Recipes")
+        self.shopping_tab = self.notebook.add("Shopping Lists")
+        self.import_export_tab = self.notebook.add("Import/Export")
         
-        # Create shopping lists tab
-        self.shopping_tab = ttk.Frame(self.notebook)
-        self.notebook.add(self.shopping_tab, text="Shopping Lists")
-        
-        # Create import/export tab
-        self.import_export_tab = ttk.Frame(self.notebook)
-        self.notebook.add(self.import_export_tab, text="Import/Export")
+        # Set up import/export tab
+        self.setup_import_export_tab()
         
         # Set up recipe tab
         self.setup_recipes_tab()
@@ -1001,28 +670,34 @@ class RecipeApp:
         # Set up shopping lists tab
         self.setup_shopping_tab()
         
-        # Set up import/export tab
-        self.setup_import_export_tab()
-        
         # Create status bar
-        self.status_var = tk.StringVar()
-        self.status_bar = ttk.Label(self.root, textvariable=self.status_var, relief=tk.SUNKEN, anchor=tk.W)
-        self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
+        self.status_var = ctk.StringVar()
+        self.status_bar = ctk.CTkLabel(
+            self.root, 
+            textvariable=self.status_var, 
+            height=25,
+            anchor="w", 
+            fg_color=("gray85", "gray30"),  # Light mode, dark mode
+            corner_radius=0
+        )
+        self.status_bar.pack(side="bottom", fill="x")
         self.status_var.set("Ready")
-    
+
+
     def setup_recipes_tab(self):
         """Set up the recipes tab with list and detail views."""
         # Create splitview: recipe list on left, recipe detail on right
-        self.recipe_paned = ttk.PanedWindow(self.recipes_tab, orient=tk.HORIZONTAL)
-        self.recipe_paned.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        # Use Frame instead of CTkPanedWindow
+        self.recipe_frame = ctk.CTkFrame(self.recipes_tab)
+        self.recipe_frame.pack(fill="both", expand=True, padx=5, pady=5)
         
         # Create recipe list frame
-        self.recipe_list_frame = ttk.Frame(self.recipe_paned)
-        self.recipe_paned.add(self.recipe_list_frame, weight=1)
+        self.recipe_list_frame = ctk.CTkFrame(self.recipe_frame, width=300)
+        self.recipe_list_frame.pack(side="left", fill="y", padx=5, pady=5)
         
         # Create recipe detail frame
-        self.recipe_detail_frame = ttk.Frame(self.recipe_paned)
-        self.recipe_paned.add(self.recipe_detail_frame, weight=2)
+        self.recipe_detail_frame = ctk.CTkFrame(self.recipe_frame)
+        self.recipe_detail_frame.pack(side="right", fill="both", expand=True, padx=5, pady=5)
         
         # Set up recipe list section
         self.setup_recipe_list()
@@ -1033,94 +708,78 @@ class RecipeApp:
     def setup_recipe_list(self):
         """Set up the recipe list part of the recipes tab."""
         # Create recipe list frame header
-        list_header = ttk.Frame(self.recipe_list_frame)
-        list_header.pack(fill=tk.X, padx=5, pady=5)
+        list_header = ctk.CTkFrame(self.recipe_list_frame)
+        list_header.pack(fill="x", padx=10, pady=10)
         
         # Create heading
-        heading = ttk.Label(list_header, text="Recipes", style="Heading.TLabel")
-        heading.pack(side=tk.LEFT, padx=5)
+        heading = ctk.CTkLabel(
+            list_header, 
+            text="Recipes", 
+            font=("Arial", 16, "bold")
+        )
+        heading.pack(side="left", padx=10)
         
         # Create search box
-        search_frame = ttk.Frame(list_header)
-        search_frame.pack(side=tk.RIGHT, padx=5, pady=2)
+        search_frame = ctk.CTkFrame(list_header)
+        search_frame.pack(side="right", padx=10, pady=5)
         
-        search_label = ttk.Label(search_frame, text="Search:")
-        search_label.pack(side=tk.LEFT, padx=2)
+        search_label = ctk.CTkLabel(search_frame, text="Search:")
+        search_label.pack(side="left", padx=5)
         
-        self.search_var = tk.StringVar()
+        self.search_var = ctk.StringVar()
         self.search_var.trace("w", self.search_recipes)
-        search_entry = ttk.Entry(search_frame, textvariable=self.search_var, width=15)
-        search_entry.pack(side=tk.LEFT, padx=2)
+        search_entry = ctk.CTkEntry(search_frame, textvariable=self.search_var, width=150)
+        search_entry.pack(side="left", padx=5)
         
         # Create filter frame
-        filter_frame = ttk.Frame(self.recipe_list_frame)
-        filter_frame.pack(fill=tk.X, padx=5, pady=2)
+        filter_frame = ctk.CTkFrame(self.recipe_list_frame)
+        filter_frame.pack(fill="x", padx=10, pady=5)
         
         # Create category filter
-        category_label = ttk.Label(filter_frame, text="Category:")
-        category_label.pack(side=tk.LEFT, padx=2)
+        category_label = ctk.CTkLabel(filter_frame, text="Category:")
+        category_label.pack(side="left", padx=5)
         
-        self.category_var = tk.StringVar()
+        self.category_var = ctk.StringVar(value="All")
         self.category_var.trace("w", self.search_recipes)
-        # We'll populate categories later after DB is initialized
-        self.category_var.set("All")
-        category_combo = ttk.Combobox(filter_frame, textvariable=self.category_var, width=12, state="readonly")
-        category_combo.pack(side=tk.LEFT, padx=2)
         
-        # Create tag filter
-        tag_label = ttk.Label(filter_frame, text="Tag:")
-        tag_label.pack(side=tk.LEFT, padx=2)
-        
-        self.tag_var = tk.StringVar()
-        self.tag_var.trace("w", self.search_recipes)
-        # We'll populate tags later after DB is initialized
-        self.tag_var.set("All")
-        tag_combo = ttk.Combobox(filter_frame, textvariable=self.tag_var, width=12, state="readonly")
-        tag_combo.pack(side=tk.LEFT, padx=2)
+        # Get categories from database
+        try:
+            categories = ["All"] + self.db.get_all_categories()
+        except:
+            categories = ["All"]
+            
+        category_combo = ctk.CTkComboBox(
+            filter_frame, 
+            variable=self.category_var,
+            values=categories,
+            width=150
+        )
+        category_combo.pack(side="left", padx=5)
         
         # Create favorites checkbox
-        self.favorite_var = tk.BooleanVar()
+        self.favorite_var = ctk.BooleanVar()
         self.favorite_var.trace("w", self.search_recipes)
-        favorite_check = ttk.Checkbutton(filter_frame, text="Favorites", variable=self.favorite_var)
-        favorite_check.pack(side=tk.LEFT, padx=5)
+        favorite_check = ctk.CTkCheckBox(
+            filter_frame, 
+            text="Favorites",
+            variable=self.favorite_var
+        )
+        favorite_check.pack(side="left", padx=10)
         
         # Add recipe button
-        add_recipe_btn = ttk.Button(self.recipe_list_frame, text="Add New Recipe", command=self.new_recipe)
-        add_recipe_btn.pack(fill=tk.X, padx=5, pady=5)
-        
-        # Create scrollable frame for recipe list
-        # Create canvas for scrollable recipe list
-        self.recipe_canvas = tk.Canvas(self.recipe_list_frame, borderwidth=0, background="#ffffff")
-        self.recipe_canvas.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        
-        # Add scrollbar
-        recipe_scrollbar = ttk.Scrollbar(self.recipe_list_frame, orient=tk.VERTICAL, command=self.recipe_canvas.yview)
-        recipe_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.recipe_canvas.configure(yscrollcommand=recipe_scrollbar.set)
-        
-        # Create frame for recipe items inside canvas
-        self.recipe_list_inner = ttk.Frame(self.recipe_canvas, style="RecipeList.TFrame")
-        self.recipe_canvas_window = self.recipe_canvas.create_window(
-            (0, 0), window=self.recipe_list_inner, anchor=tk.NW, tags="self.recipe_list_inner"
+        add_recipe_btn = ctk.CTkButton(
+            self.recipe_list_frame, 
+            text="Add New Recipe",
+            command=self.new_recipe
         )
+        add_recipe_btn.pack(fill="x", padx=10, pady=10)
         
-        # Configure canvas to resize with frame
-        self.recipe_list_inner.bind("<Configure>", self.on_recipe_list_configure)
-        self.recipe_canvas.bind("<Configure>", self.on_recipe_canvas_configure)
-        
-        # Update the comboboxes with actual values
-        try:
-            # Try to populate categories and tags from database
-            categories = ["All"] + self.db.get_all_categories()
-            tags = ["All"] + self.db.get_all_tags()
-            
-            category_combo['values'] = categories
-            tag_combo['values'] = tags
-            category_combo.current(0)
-            tag_combo.current(0)
-        except:
-            # If database isn't ready yet, we'll update these later
-            pass
+        # Create scrollable frame for recipe list - replacing Canvas + Scrollbar setup
+        self.recipe_list_scrollable = ctk.CTkScrollableFrame(
+            self.recipe_list_frame,
+            label_text="Available Recipes"
+        )
+        self.recipe_list_scrollable.pack(fill="both", expand=True, padx=10, pady=10)
         
         # Load recipes
         self.load_recipe_list()
@@ -1134,107 +793,158 @@ class RecipeApp:
         """Handle recipe canvas configuration."""
         # Update the width of the inner frame to fill the canvas
         self.recipe_canvas.itemconfig(self.recipe_canvas_window, width=event.width)
-    
-    def load_recipe_list(self):
+
+    def load_recipe_list(self, recipes=None):
         """Load recipes into the recipe list."""
         # Clear existing items
-        for widget in self.recipe_list_inner.winfo_children():
+        for widget in self.recipe_list_scrollable.winfo_children():
             widget.destroy()
         
-        # Get recipes based on search/filter
-        search_term = self.search_var.get() if hasattr(self, 'search_var') else ""
-        category = self.category_var.get() if hasattr(self, 'category_var') and self.category_var.get() != "All" else None
-        tag = self.tag_var.get() if hasattr(self, 'tag_var') and self.tag_var.get() != "All" else None
-        favorite = self.favorite_var.get() if hasattr(self, 'favorite_var') else None
-        
-        # Prepare filter parameters
-        categories = [category] if category else None
-        tags = [tag] if tag else None
-        
-        # Search for recipes
-        recipes = self.db.search_recipes(search_term, categories, tags, favorite)
+        # If no recipes passed, get all recipes
+        if recipes is None:
+            search_term = self.search_var.get() if hasattr(self, 'search_var') else ""
+            category = self.category_var.get() if hasattr(self, 'category_var') and self.category_var.get() != "All" else None
+            favorite = self.favorite_var.get() if hasattr(self, 'favorite_var') and self.favorite_var.get() else None
+            categories = [category] if category else None
+            recipes = self.db.search_recipes(search_term, categories, favorite)
         
         if not recipes:
-            # Show no recipes message
-            no_recipes = ttk.Label(self.recipe_list_inner, text="No recipes found", style="RecipeListItem.TLabel")
-            no_recipes.pack(fill=tk.X, padx=10, pady=10)
+            # Show no recipes message - REPLACE ttk WITH ctk HERE
+            no_recipes = ctk.CTkLabel(
+                self.recipe_list_scrollable, 
+                text="No recipes found",
+                font=("Arial", 12)
+            )
+            no_recipes.pack(fill="x", padx=10, pady=10)
         else:
             # Add recipe items
             for recipe in recipes:
                 self.create_recipe_list_item(recipe)
     
+    # In the create_recipe_list_item method, add a tag to identify selected recipes:
     def create_recipe_list_item(self, recipe):
-        """Create a recipe list item widget."""
-        # Create frame for recipe item
-        recipe_frame = ttk.Frame(self.recipe_list_inner, style="RecipeListItem.TFrame")
-        recipe_frame.pack(fill=tk.X, padx=2, pady=2)
-        recipe_frame.bind("<Button-1>", lambda e, r=recipe: self.load_recipe_detail(r["id"]))
+        # Create frame for recipe item with modern styling
+        recipe_frame = ctk.CTkFrame(self.recipe_list_scrollable)
+        recipe_frame.pack(fill="x", padx=5, pady=5)
         
-        # Create recipe item content
-        name_label = ttk.Label(
+        # Store the recipe ID in the frame for later reference
+        recipe_frame.recipe_id = recipe["id"]
+        
+        # Use a lambda to bind click event to the whole frame
+        recipe_frame.bind("<Button-1>", lambda e, r=recipe: self.select_recipe(r["id"], recipe_frame))
+        
+        # Create recipe item content with modern styling
+        name_font = ("Arial", 14, "bold") if recipe["favorite"] else ("Arial", 14)
+        
+        name_label = ctk.CTkLabel(
             recipe_frame, 
             text=recipe["name"],
-            style="RecipeListItem.TLabel",
-            font=("Arial", 11, "bold" if recipe["favorite"] else "normal")
+            font=name_font
         )
-        name_label.pack(anchor=tk.W, padx=5, pady=2)
-        name_label.bind("<Button-1>", lambda e, r=recipe: self.load_recipe_detail(r["id"]))
+        name_label.pack(fill="x", padx=10, pady=5)
+        name_label.bind("<Button-1>", lambda e, r=recipe: self.select_recipe(r["id"], recipe_frame))
         
-        # Add recipe description if available
-        if recipe["description"]:
-            desc = recipe["description"]
-            if len(desc) > 60:
-                desc = desc[:57] + "..."
-            desc_label = ttk.Label(recipe_frame, text=desc, style="RecipeListItem.TLabel")
-            desc_label.pack(anchor=tk.W, padx=5)
-            desc_label.bind("<Button-1>", lambda e, r=recipe: self.load_recipe_detail(r["id"]))
-        
-        # Add cooking time if available
-        if recipe["prep_time"] or recipe["cook_time"]:
-            total_time = (recipe["prep_time"] or 0) + (recipe["cook_time"] or 0)
-            time_label = ttk.Label(
-                recipe_frame, 
-                text=f"{total_time} min • {recipe['difficulty']}",
-                style="RecipeListItem.TLabel"
+        # Add favorite star if recipe is favorite
+        if recipe["favorite"]:
+            star_label = ctk.CTkLabel(
+                recipe_frame,
+                text="★",
+                font=("Arial", 14),
+                text_color=("gold", "gold")  # Same color for light/dark mode
             )
-            time_label.pack(anchor=tk.W, padx=5, pady=2)
-            time_label.bind("<Button-1>", lambda e, r=recipe: self.load_recipe_detail(r["id"]))
+            star_label.place(relx=0.95, rely=0.5, anchor="e")
         
-        # Add separator
-        ttk.Separator(self.recipe_list_inner, orient=tk.HORIZONTAL).pack(fill=tk.X, padx=5, pady=3)
+        # Add separator (thin frame instead of ttk.Separator)
+        separator = ctk.CTkFrame(self.recipe_list_scrollable, height=1, fg_color=("gray80", "gray30"))
+        separator.pack(fill="x", padx=10, pady=2)
     
+    def select_recipe(self, recipe_id, selected_frame):
+        """Handle recipe selection and highlighting."""
+        # Load the recipe detail
+        self.load_recipe_detail(recipe_id)
+        
+        # Remove highlight from all recipe frames
+        for child in self.recipe_list_scrollable.winfo_children():
+            if isinstance(child, ctk.CTkFrame) and hasattr(child, 'recipe_id'):
+                child.configure(fg_color=("gray90", "gray20"))  # Reset to default color
+        
+        # Highlight the selected frame
+        selected_frame.configure(fg_color=("lightblue", "navy"))  # Highlight color
+
     def setup_recipe_detail(self):
         """Set up the recipe detail part of the recipes tab."""
         # Create a frame for recipe editing form
-        self.recipe_form_frame = ttk.Frame(self.recipe_detail_frame, style="Form.TFrame")
-        self.recipe_form_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.recipe_form_frame = ctk.CTkFrame(self.recipe_detail_frame)
+        self.recipe_form_frame.pack(fill="both", expand=True, padx=5, pady=5)
         
         # Initially hide the form
         self.recipe_form_frame.pack_forget()
         
-        # Create view for recipe details
-        self.recipe_view_frame = ttk.Frame(self.recipe_detail_frame, style="Recipe.TFrame")
-        self.recipe_view_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        # Create scrollable frame for recipe details
+        self.recipe_view_frame = ctk.CTkScrollableFrame(
+            self.recipe_detail_frame,
+            label_text="Recipe Details"
+        )
+        self.recipe_view_frame.pack(fill="both", expand=True, padx=5, pady=5)
         
         # Initially show a welcome message in detail view
-        welcome_label = ttk.Label(
+        welcome_label = ctk.CTkLabel(
             self.recipe_view_frame, 
             text="Welcome to Recipe Organization System",
-            style="RecipeTitle.TLabel"
+            font=("Arial", 20, "bold")
         )
         welcome_label.pack(pady=20)
         
-        instruction_label = ttk.Label(
+        instruction_label = ctk.CTkLabel(
             self.recipe_view_frame,
             text="Select a recipe from the list on the left or create a new recipe.",
-            style="Recipe.TLabel"
+            font=("Arial", 14)
         )
         instruction_label.pack(pady=10)
     
     def search_recipes(self, *args):
         """Handle recipe search and filtering."""
-        self.load_recipe_list()
-    
+        # Get search parameters
+        search_term = self.search_var.get() if hasattr(self, 'search_var') else ""
+        category = self.category_var.get() if hasattr(self, 'category_var') and self.category_var.get() != "All" else None
+        favorite = self.favorite_var.get() if hasattr(self, 'favorite_var') else None
+        
+        # Prepare filter parameters
+        categories = [category] if category else None
+        
+        # Search for recipes
+        recipes = self.db.search_recipes(search_term, categories, favorite)
+        
+        # Update the recipe list with the search results
+        self.load_recipe_list(recipes)
+
+    def load_recipe_list(self, recipes=None):
+        """Load recipes into the recipe list."""
+        # Clear existing items
+        for widget in self.recipe_list_scrollable.winfo_children():
+            widget.destroy()
+        
+        # If no recipes passed, get all recipes
+        if recipes is None:
+            search_term = self.search_var.get() if hasattr(self, 'search_var') else ""
+            category = self.category_var.get() if hasattr(self, 'category_var') and self.category_var.get() != "All" else None
+            favorite = self.favorite_var.get() if hasattr(self, 'favorite_var') and self.favorite_var.get() else None
+            categories = [category] if category else None
+            recipes = self.db.search_recipes(search_term, categories, favorite)
+        
+        if not recipes:
+            # Show no recipes message
+            no_recipes = ctk.CTkLabel(
+                self.recipe_list_scrollable, 
+                text="No recipes found",
+                font=("Arial", 12)
+            )
+            no_recipes.pack(fill="x", padx=10, pady=10)
+        else:
+            # Add recipe items
+            for recipe in recipes:
+                self.create_recipe_list_item(recipe)
+
     def new_recipe(self):
         """Create a new recipe."""
         # Clear the recipe detail view
@@ -1243,291 +953,183 @@ class RecipeApp:
         
         # Hide recipe view and show recipe form
         self.recipe_view_frame.pack_forget()
-        self.recipe_form_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        # Clear form
+        # Clear form frame and recreate as scrollable frame
         for widget in self.recipe_form_frame.winfo_children():
             widget.destroy()
         
-        # Create form header
-        form_header = ttk.Frame(self.recipe_form_frame)
-        form_header.pack(fill=tk.X, pady=5)
+        self.recipe_form_frame = ctk.CTkScrollableFrame(
+            self.recipe_detail_frame,
+            label_text="New Recipe"
+        )
+        self.recipe_form_frame.pack(fill="both", expand=True, padx=5, pady=5)
         
-        heading = ttk.Label(form_header, text="New Recipe", style="Heading.TLabel")
-        heading.pack(side=tk.LEFT, padx=5)
-        
-        # Create form content in a scrollable canvas
-        canvas = tk.Canvas(self.recipe_form_frame, borderwidth=0, background="#f5f5f5")
-        scrollbar = ttk.Scrollbar(self.recipe_form_frame, orient=tk.VERTICAL, command=canvas.yview)
-        
-        form_inner = ttk.Frame(canvas)
-        
-        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        canvas.configure(yscrollcommand=scrollbar.set)
-        canvas_window = canvas.create_window((0, 0), window=form_inner, anchor=tk.NW)
-        
-        def on_form_configure(event):
-            canvas.configure(scrollregion=canvas.bbox(tk.ALL))
-            canvas.itemconfig(canvas_window, width=event.width)
-        
-        form_inner.bind("<Configure>", on_form_configure)
-        canvas.bind("<Configure>", lambda e: canvas.itemconfig(canvas_window, width=e.width))
+        # IMPORTANT: Reset the ingredients list to empty
+        self.ingredients = []
+
+        # Create form header with large title
+        heading = ctk.CTkLabel(
+            self.recipe_form_frame, 
+            text="New Recipe", 
+            font=("Arial", 20, "bold")
+        )
+        heading.pack(pady=10)
         
         # Basic info section
-        basic_frame = ttk.LabelFrame(form_inner, text="Basic Information")
-        basic_frame.pack(fill=tk.X, padx=10, pady=5)
+        basic_frame = ctk.CTkFrame(self.recipe_form_frame)
+        basic_frame.pack(fill="x", padx=10, pady=5)
+        
+        basic_label = ctk.CTkLabel(basic_frame, text="Basic Information", font=("Arial", 14, "bold"))
+        basic_label.pack(anchor="w", padx=5, pady=5)
         
         # Name field
-        name_frame = ttk.Frame(basic_frame)
-        name_frame.pack(fill=tk.X, padx=5, pady=5)
+        name_frame = ctk.CTkFrame(basic_frame)
+        name_frame.pack(fill="x", padx=5, pady=5)
         
-        name_label = ttk.Label(name_frame, text="Recipe Name:")
-        name_label.pack(side=tk.LEFT, padx=5)
+        name_label = ctk.CTkLabel(name_frame, text="Recipe Name:")
+        name_label.pack(side="left", padx=5)
         
-        self.recipe_name_var = tk.StringVar()
-        name_entry = ttk.Entry(name_frame, textvariable=self.recipe_name_var, width=40)
-        name_entry.pack(side=tk.LEFT, padx=5)
+        self.recipe_name_var = ctk.StringVar()
+        name_entry = ctk.CTkEntry(name_frame, textvariable=self.recipe_name_var, width=300)
+        name_entry.pack(side="left", padx=5)
         
         # Favorite checkbox
-        self.recipe_favorite_var = tk.BooleanVar()
-        favorite_check = ttk.Checkbutton(name_frame, text="Favorite", variable=self.recipe_favorite_var)
-        favorite_check.pack(side=tk.LEFT, padx=5)
+        self.recipe_favorite_var = ctk.BooleanVar()
+        favorite_check = ctk.CTkCheckBox(name_frame, text="Favorite", variable=self.recipe_favorite_var)
+        favorite_check.pack(side="left", padx=5)
         
-        # Description field
-        desc_frame = ttk.Frame(basic_frame)
-        desc_frame.pack(fill=tk.X, padx=5, pady=5)
+        # Categories section
+        cat_frame = ctk.CTkFrame(self.recipe_form_frame)
+        cat_frame.pack(fill="x", padx=10, pady=10)
         
-        desc_label = ttk.Label(desc_frame, text="Description:")
-        desc_label.pack(anchor=tk.W, padx=5)
+        cat_label = ctk.CTkLabel(cat_frame, text="Categories", font=("Arial", 14, "bold"))
+        cat_label.pack(anchor="w", padx=5, pady=5)
         
-        self.recipe_desc_var = tk.StringVar()
-        desc_entry = ttk.Entry(desc_frame, textvariable=self.recipe_desc_var, width=60)
-        desc_entry.pack(fill=tk.X, padx=5, pady=2)
-        
-        # Time and servings frame
-        time_frame = ttk.Frame(basic_frame)
-        time_frame.pack(fill=tk.X, padx=5, pady=5)
-        
-        # Prep time
-        prep_label = ttk.Label(time_frame, text="Prep Time (min):")
-        prep_label.pack(side=tk.LEFT, padx=5)
-        
-        self.prep_time_var = tk.StringVar()
-        prep_entry = ttk.Entry(time_frame, textvariable=self.prep_time_var, width=5)
-        prep_entry.pack(side=tk.LEFT, padx=2)
-        
-        # Cook time
-        cook_label = ttk.Label(time_frame, text="Cook Time (min):")
-        cook_label.pack(side=tk.LEFT, padx=5)
-        
-        self.cook_time_var = tk.StringVar()
-        cook_entry = ttk.Entry(time_frame, textvariable=self.cook_time_var, width=5)
-        cook_entry.pack(side=tk.LEFT, padx=2)
-        
-        # Servings
-        servings_label = ttk.Label(time_frame, text="Servings:")
-        servings_label.pack(side=tk.LEFT, padx=5)
-        
-        self.servings_var = tk.StringVar()
-        servings_entry = ttk.Entry(time_frame, textvariable=self.servings_var, width=5)
-        servings_entry.pack(side=tk.LEFT, padx=2)
-        
-        # Difficulty
-        difficulty_label = ttk.Label(time_frame, text="Difficulty:")
-        difficulty_label.pack(side=tk.LEFT, padx=5)
-        
-        self.difficulty_var = tk.StringVar()
-        difficulty_combo = ttk.Combobox(time_frame, textvariable=self.difficulty_var, 
-                                      values=["Easy", "Medium", "Hard"], width=8, state="readonly")
-        difficulty_combo.current(1)  # Default to Medium
-        difficulty_combo.pack(side=tk.LEFT, padx=2)
-        
-        # Source
-        source_frame = ttk.Frame(basic_frame)
-        source_frame.pack(fill=tk.X, padx=5, pady=5)
-        
-        source_label = ttk.Label(source_frame, text="Source:")
-        source_label.pack(side=tk.LEFT, padx=5)
-        
-        self.source_var = tk.StringVar()
-        source_entry = ttk.Entry(source_frame, textvariable=self.source_var, width=40)
-        source_entry.pack(side=tk.LEFT, padx=5)
-        
-        # Categories and Tags section
-        cat_tag_frame = ttk.LabelFrame(form_inner, text="Categories and Tags")
-        cat_tag_frame.pack(fill=tk.X, padx=10, pady=5)
-        
-        # Categories
-        cat_frame = ttk.Frame(cat_tag_frame)
-        cat_frame.pack(fill=tk.X, padx=5, pady=5)
-        
-        cat_label = ttk.Label(cat_frame, text="Categories:")
-        cat_label.pack(side=tk.LEFT, padx=5)
+        # Replace the tk.Listbox with a scrollable frame containing checkboxes
+        self.categories_scrollable = ctk.CTkScrollableFrame(cat_frame, height=150)
+        self.categories_scrollable.pack(fill="x", padx=5, pady=5)
         
         # Get all categories
         all_categories = self.db.get_all_categories()
         
-        # Categories listbox with scrollbar
-        cat_listbox_frame = ttk.Frame(cat_frame)
-        cat_listbox_frame.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
+        # Dictionary to store category checkbox variables
+        self.category_vars = {}
         
-        self.cat_listbox = tk.Listbox(cat_listbox_frame, selectmode=tk.MULTIPLE, height=4)
-        cat_scrollbar = ttk.Scrollbar(cat_listbox_frame, orient=tk.VERTICAL, command=self.cat_listbox.yview)
-        
-        self.cat_listbox.configure(yscrollcommand=cat_scrollbar.set)
-        
-        self.cat_listbox.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        cat_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        # Populate categories
+        # Create a checkbox for each category
         for category in all_categories:
-            self.cat_listbox.insert(tk.END, category)
+            var = ctk.BooleanVar(value=False)
+            self.category_vars[category] = var
+            checkbox = ctk.CTkCheckBox(self.categories_scrollable, text=category, variable=var)
+            checkbox.pack(anchor="w", padx=5, pady=2)
+        
+        # Frame for the new category button
+        cat_btn_frame = ctk.CTkFrame(cat_frame)
+        cat_btn_frame.pack(fill="x", padx=5, pady=5)
         
         # New category button
-        new_cat_btn = ttk.Button(cat_frame, text="New Category", command=self.add_new_category)
-        new_cat_btn.pack(side=tk.LEFT, padx=5)
-        
-        # Tags
-        tag_frame = ttk.Frame(cat_tag_frame)
-        tag_frame.pack(fill=tk.X, padx=5, pady=5)
-        
-        tag_label = ttk.Label(tag_frame, text="Tags:")
-        tag_label.pack(side=tk.LEFT, padx=5)
-        
-        # Get all tags
-        all_tags = self.db.get_all_tags()
-        
-        # Tags listbox with scrollbar
-        tag_listbox_frame = ttk.Frame(tag_frame)
-        tag_listbox_frame.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
-        
-        self.tag_listbox = tk.Listbox(tag_listbox_frame, selectmode=tk.MULTIPLE, height=4)
-        tag_scrollbar = ttk.Scrollbar(tag_listbox_frame, orient=tk.VERTICAL, command=self.tag_listbox.yview)
-        
-        self.tag_listbox.configure(yscrollcommand=tag_scrollbar.set)
-        
-        self.tag_listbox.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        tag_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        # Populate tags
-        for tag in all_tags:
-            self.tag_listbox.insert(tk.END, tag)
-        
-        # New tag button
-        new_tag_btn = ttk.Button(tag_frame, text="New Tag", command=self.add_new_tag)
-        new_tag_btn.pack(side=tk.LEFT, padx=5)
+        new_cat_btn = ctk.CTkButton(
+            cat_btn_frame, 
+            text="New Category", 
+            command=self.add_new_category
+        )
+        new_cat_btn.pack(side="left", padx=5)
         
         # Ingredients section
-        ingredients_frame = ttk.LabelFrame(form_inner, text="Ingredients")
-        ingredients_frame.pack(fill=tk.X, padx=10, pady=5)
+        ingredients_frame = ctk.CTkFrame(self.recipe_form_frame)
+        ingredients_frame.pack(fill="x", padx=10, pady=10)
+        
+        ing_label = ctk.CTkLabel(ingredients_frame, text="Ingredients", font=("Arial", 14, "bold"))
+        ing_label.pack(anchor="w", padx=5, pady=5)
         
         # Ingredients list
-        self.ingredients_list_frame = ttk.Frame(ingredients_frame)
-        self.ingredients_list_frame.pack(fill=tk.X, padx=5, pady=5)
+        self.ingredients_list_frame = ctk.CTkFrame(ingredients_frame)
+        self.ingredients_list_frame.pack(fill="x", padx=5, pady=5)
         
         # Ingredient list will be populated here
         self.ingredients = []  # Store ingredient data
         
         # Add ingredient button
-        add_ing_btn = ttk.Button(ingredients_frame, text="Add Ingredient", command=self.add_ingredient_row)
+        add_ing_btn = ctk.CTkButton(
+            ingredients_frame, 
+            text="Add Ingredient", 
+            command=self.add_ingredient_row
+        )
         add_ing_btn.pack(padx=5, pady=5)
         
         # Instructions section
-        instr_frame = ttk.LabelFrame(form_inner, text="Instructions")
-        instr_frame.pack(fill=tk.X, padx=10, pady=5)
+        instr_frame = ctk.CTkFrame(self.recipe_form_frame)
+        instr_frame.pack(fill="x", padx=10, pady=10)
         
-        self.instructions_text = ScrolledText(instr_frame, height=10, width=50, wrap=tk.WORD)
-        self.instructions_text.pack(fill=tk.X, padx=5, pady=5)
+        instr_label = ctk.CTkLabel(instr_frame, text="Instructions", font=("Arial", 14, "bold"))
+        instr_label.pack(anchor="w", padx=5, pady=5)
         
-        # Notes section
-        notes_frame = ttk.LabelFrame(form_inner, text="Notes")
-        notes_frame.pack(fill=tk.X, padx=10, pady=5)
-        
-        self.notes_text = ScrolledText(notes_frame, height=5, width=50, wrap=tk.WORD)
-        self.notes_text.pack(fill=tk.X, padx=5, pady=5)
+        self.instructions_text = ctk.CTkTextbox(instr_frame, height=150, wrap="word")
+        self.instructions_text.pack(fill="x", padx=5, pady=5)
         
         # Button frame
-        btn_frame = ttk.Frame(form_inner)
-        btn_frame.pack(fill=tk.X, padx=10, pady=10)
+        btn_frame = ctk.CTkFrame(self.recipe_form_frame)
+        btn_frame.pack(fill="x", padx=10, pady=10)
         
         # Save button
-        save_btn = ttk.Button(btn_frame, text="Save Recipe", command=self.save_new_recipe)
-        save_btn.pack(side=tk.LEFT, padx=5)
+        save_btn = ctk.CTkButton(
+            btn_frame, 
+            text="Save Recipe", 
+            command=self.save_new_recipe
+        )
+        save_btn.pack(side="left", padx=5)
         
         # Cancel button
-        cancel_btn = ttk.Button(btn_frame, text="Cancel", command=self.cancel_recipe_edit)
-        cancel_btn.pack(side=tk.LEFT, padx=5)
+        cancel_btn = ctk.CTkButton(
+            btn_frame, 
+            text="Cancel", 
+            command=self.cancel_recipe_edit
+        )
+        cancel_btn.pack(side="left", padx=5)
         
         # Add a single ingredient row to start
         self.add_ingredient_row()
     
     def add_ingredient_row(self):
         """Add a new ingredient row to the form."""
-        row_frame = ttk.Frame(self.ingredients_list_frame)
-        row_frame.pack(fill=tk.X, padx=5, pady=2)
+        row_frame = ctk.CTkFrame(self.ingredients_list_frame)
+        row_frame.pack(fill="x", padx=5, pady=2)
         
-        # Quantity field
-        quantity_var = tk.StringVar()
-        quantity_entry = ttk.Entry(row_frame, textvariable=quantity_var, width=6)
-        quantity_entry.pack(side=tk.LEFT, padx=2)
-        
-        # Unit field
-        unit_var = tk.StringVar()
-        unit_entry = ttk.Entry(row_frame, textvariable=unit_var, width=8)
-        unit_entry.pack(side=tk.LEFT, padx=2)
-        
-        # Ingredient name field
-        name_var = tk.StringVar()
-        name_entry = ttk.Entry(row_frame, textvariable=name_var, width=30)
-        name_entry.pack(side=tk.LEFT, padx=2)
-        
-        # Notes field
-        notes_var = tk.StringVar()
-        notes_entry = ttk.Entry(row_frame, textvariable=notes_var, width=20)
-        notes_entry.pack(side=tk.LEFT, padx=2)
+        # Ingredient text field
+        ingredient_var = ctk.StringVar()
+        ingredient_entry = ctk.CTkEntry(row_frame, textvariable=ingredient_var, width=300)
+        ingredient_entry.pack(side="left", padx=2, fill="x", expand=True)
         
         # Remove button
         def remove_ingredient():
             row_frame.destroy()
             self.ingredients.remove(ingredient_data)
         
-        remove_btn = ttk.Button(row_frame, text="X", width=2, command=remove_ingredient)
-        remove_btn.pack(side=tk.LEFT, padx=2)
+        remove_btn = ctk.CTkButton(row_frame, text="X", width=30, command=remove_ingredient)
+        remove_btn.pack(side="left", padx=2)
         
         # Store the ingredient data
         ingredient_data = {
             "row_frame": row_frame,
-            "quantity_var": quantity_var,
-            "unit_var": unit_var,
-            "name_var": name_var,
-            "notes_var": notes_var
+            "ingredient_var": ingredient_var
         }
         
         self.ingredients.append(ingredient_data)
-    
+        
+        return ingredient_data
+        
     def add_new_category(self):
         """Add a new category to the database."""
         new_category = simpledialog.askstring("New Category", "Enter new category name:")
         if new_category and new_category.strip():
             # Add to database
-            self.cursor.execute('INSERT OR IGNORE INTO categories (name) VALUES (?)', (new_category,))
-            self.conn.commit()
+            self.db.cursor.execute('INSERT OR IGNORE INTO categories (name) VALUES (?)', (new_category,))
+            self.db.conn.commit()
             
-            # Add to list
-            self.cat_listbox.insert(tk.END, new_category)
-    
-    def add_new_tag(self):
-        """Add a new tag to the database."""
-        new_tag = simpledialog.askstring("New Tag", "Enter new tag name:")
-        if new_tag and new_tag.strip():
-            # Add to database
-            self.cursor.execute('INSERT OR IGNORE INTO tags (name) VALUES (?)', (new_tag,))
-            self.conn.commit()
-            
-            # Add to list
-            self.tag_listbox.insert(tk.END, new_tag)
+            # Add to UI as a checkbox
+            var = ctk.BooleanVar(value=True)
+            self.category_vars[new_category] = var
+            checkbox = ctk.CTkCheckBox(self.categories_scrollable, text=new_category, variable=var)
+            checkbox.pack(anchor="w", padx=5, pady=2)
     
     def save_new_recipe(self):
         """Save a new recipe to the database."""
@@ -1539,33 +1141,20 @@ class RecipeApp:
         # Gather recipe data
         recipe_data = {
             "name": self.recipe_name_var.get().strip(),
-            "description": self.recipe_desc_var.get().strip(),
             "instructions": self.instructions_text.get("1.0", tk.END).strip(),
-            "prep_time": int(self.prep_time_var.get() or 0),
-            "cook_time": int(self.cook_time_var.get() or 0),
-            "servings": int(self.servings_var.get() or 1),
-            "difficulty": self.difficulty_var.get(),
-            "source": self.source_var.get().strip(),
-            "notes": self.notes_text.get("1.0", tk.END).strip(),
             "favorite": self.recipe_favorite_var.get(),
-            "categories": [self.cat_listbox.get(idx) for idx in self.cat_listbox.curselection()],
-            "tags": [self.tag_listbox.get(idx) for idx in self.tag_listbox.curselection()],
+            "categories": [cat for cat, var in self.category_vars.items() if var.get()],
             "ingredients": []
         }
         
         # Process ingredients
         for ingredient in self.ingredients:
             # Skip empty ingredients
-            if not ingredient["name_var"].get().strip():
+            if not ingredient["ingredient_var"].get().strip():
                 continue
                 
-            ingredient_data = {
-                "name": ingredient["name_var"].get().strip(),
-                "quantity": float(ingredient["quantity_var"].get() or 0),
-                "unit": ingredient["unit_var"].get().strip(),
-                "notes": ingredient["notes_var"].get().strip()
-            }
-            recipe_data["ingredients"].append(ingredient_data)
+            ingredient_text = ingredient["ingredient_var"].get().strip()
+            recipe_data["ingredients"].append(ingredient_text)
         
         # Add recipe to database
         recipe_id = self.db.add_recipe(recipe_data)
@@ -1584,9 +1173,12 @@ class RecipeApp:
         # Clear form
         self.recipe_form_frame.pack_forget()
         
-        # Show recipe view frame
-        self.recipe_view_frame.pack(fill=tk.BOTH, expand=True)
+        # Reset ingredients list
+        self.ingredients = []
         
+        # Show recipe view frame
+        self.recipe_view_frame.pack(fill="both", expand=True)
+
         # If current recipe, reload it, otherwise show welcome message
         if hasattr(self, 'current_recipe_id'):
             self.load_recipe_detail(self.current_recipe_id)
@@ -1596,27 +1188,22 @@ class RecipeApp:
                 widget.destroy()
             
             # Add welcome message
-            welcome_label = ttk.Label(
+            welcome_label = ctk.CTkLabel(
                 self.recipe_view_frame, 
                 text="Welcome to Recipe Organization System",
-                style="RecipeTitle.TLabel"
+                font=("Arial", 20, "bold")
             )
             welcome_label.pack(pady=20)
             
-            instruction_label = ttk.Label(
+            instruction_label = ctk.CTkLabel(
                 self.recipe_view_frame,
                 text="Select a recipe from the list on the left or create a new recipe.",
-                style="Recipe.TLabel"
+                font=("Arial", 14)
             )
             instruction_label.pack(pady=10)
-    
+
     def load_recipe_detail(self, recipe_id):
-        """
-        Load and display recipe details.
-        
-        Args:
-            recipe_id (int): ID of the recipe to display
-        """
+        """Load and display recipe details."""
         # Store current recipe ID
         self.current_recipe_id = recipe_id
         
@@ -1633,230 +1220,112 @@ class RecipeApp:
         
         # Hide recipe form and show recipe view
         self.recipe_form_frame.pack_forget()
-        self.recipe_view_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.recipe_view_frame.pack(fill="both", expand=True, padx=5, pady=5)
         
-        # Create a scrollable canvas for recipe content
-        canvas = tk.Canvas(self.recipe_view_frame, borderwidth=0, background="white")
-        scrollbar = ttk.Scrollbar(self.recipe_view_frame, orient=tk.VERTICAL, command=canvas.yview)
+        # Recipe header (for buttons)
+        header_frame = ctk.CTkFrame(self.recipe_view_frame)
+        header_frame.pack(fill="x", padx=10, pady=10)
         
-        content_frame = ttk.Frame(canvas, style="Recipe.TFrame")
-        
-        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        canvas.configure(yscrollcommand=scrollbar.set)
-        canvas_window = canvas.create_window((0, 0), window=content_frame, anchor=tk.NW)
-        
-        def on_content_configure(event):
-            canvas.configure(scrollregion=canvas.bbox(tk.ALL))
-            canvas.itemconfig(canvas_window, width=event.width)
-        
-        content_frame.bind("<Configure>", on_content_configure)
-        canvas.bind("<Configure>", lambda e: canvas.itemconfig(canvas_window, width=e.width))
-        
-        # Recipe header
-        header_frame = ttk.Frame(content_frame, style="Recipe.TFrame")
-        header_frame.pack(fill=tk.X, padx=10, pady=10)
+        # Title frame for recipe name
+        title_frame = ctk.CTkFrame(self.recipe_view_frame)
+        title_frame.pack(fill="x", padx=10, pady=(0, 5))
         
         # Recipe title
-        title_label = ttk.Label(
-            header_frame, 
+        title_label = ctk.CTkLabel(
+            title_frame, 
             text=recipe["name"],
-            style="RecipeTitle.TLabel"
+            font=("Arial", 20, "bold")
         )
-        title_label.pack(side=tk.LEFT, pady=5)
+        title_label.pack(side="left", pady=5)
         
         # Star for favorite recipes
         if recipe["favorite"]:
-            favorite_label = ttk.Label(
-                header_frame,
+            favorite_label = ctk.CTkLabel(
+                title_frame,
                 text="★",
-                font=("Arial", 16),
-                foreground="gold"
+                font=("Arial", 18),
+                text_color=("gold", "gold")
             )
-            favorite_label.pack(side=tk.LEFT, padx=5)
+            favorite_label.pack(side="left", padx=5)
         
-        # Button frame
-        btn_frame = ttk.Frame(header_frame, style="Recipe.TFrame")
-        btn_frame.pack(side=tk.RIGHT)
+        # Button frame (now in the header_frame)
+        btn_frame = ctk.CTkFrame(header_frame)
+        btn_frame.pack(fill="x")
         
         # Edit button
-        edit_btn = ttk.Button(
+        edit_btn = ctk.CTkButton(
             btn_frame, 
             text="Edit", 
             command=lambda: self.edit_recipe(recipe_id)
         )
-        edit_btn.pack(side=tk.LEFT, padx=2)
+        edit_btn.pack(side="left", padx=5, pady=5, expand=True, fill="x")
         
         # Delete button
-        delete_btn = ttk.Button(
+        delete_btn = ctk.CTkButton(
             btn_frame, 
             text="Delete", 
             command=lambda: self.delete_recipe(recipe_id)
         )
-        delete_btn.pack(side=tk.LEFT, padx=2)
+        delete_btn.pack(side="left", padx=5, pady=5, expand=True, fill="x")
         
         # Add to shopping list button
-        add_to_shopping_btn = ttk.Button(
+        add_to_shopping_btn = ctk.CTkButton(
             btn_frame,
             text="Add to Shopping List",
             command=lambda: self.add_recipe_to_shopping_list(recipe_id)
         )
-        add_to_shopping_btn.pack(side=tk.LEFT, padx=2)
+        add_to_shopping_btn.pack(side="left", padx=5, pady=5, expand=True, fill="x")
         
-        # Recipe description
-        if recipe["description"]:
-            desc_label = ttk.Label(
-                content_frame,
-                text=recipe["description"],
-                style="Recipe.TLabel",
-                wraplength=600
-            )
-            desc_label.pack(fill=tk.X, padx=10, pady=5)
-        
-        # Recipe meta information
-        meta_frame = ttk.Frame(content_frame, style="Recipe.TFrame")
-        meta_frame.pack(fill=tk.X, padx=10, pady=5)
-        
-        # Time and servings
-        time_frame = ttk.Frame(meta_frame, style="Recipe.TFrame")
-        time_frame.pack(side=tk.LEFT, padx=10)
-        
-        if recipe["prep_time"] or recipe["cook_time"]:
-            prep_time = recipe["prep_time"] or 0
-            cook_time = recipe["cook_time"] or 0
-            total_time = prep_time + cook_time
-            
-            if prep_time > 0:
-                prep_label = ttk.Label(
-                    time_frame,
-                    text=f"Prep time: {prep_time} min",
-                    style="Recipe.TLabel"
-                )
-                prep_label.pack(anchor=tk.W)
-            
-            if cook_time > 0:
-                cook_label = ttk.Label(
-                    time_frame,
-                    text=f"Cook time: {cook_time} min",
-                    style="Recipe.TLabel"
-                )
-                cook_label.pack(anchor=tk.W)
-            
-            total_label = ttk.Label(
-                time_frame,
-                text=f"Total time: {total_time} min",
-                style="Recipe.TLabel"
-            )
-            total_label.pack(anchor=tk.W)
-        
-        if recipe["servings"]:
-            servings_label = ttk.Label(
-                time_frame,
-                text=f"Servings: {recipe['servings']}",
-                style="Recipe.TLabel"
-            )
-            servings_label.pack(anchor=tk.W)
-        
-        difficulty_label = ttk.Label(
-            time_frame,
-            text=f"Difficulty: {recipe['difficulty']}",
-            style="Recipe.TLabel"
-        )
-        difficulty_label.pack(anchor=tk.W)
-        
-        # Categories and tags
-        tags_frame = ttk.Frame(meta_frame, style="Recipe.TFrame")
-        tags_frame.pack(side=tk.LEFT, padx=10)
-        
+        # Categories if available
         if recipe["categories"]:
-            cat_label = ttk.Label(
-                tags_frame,
+            cat_frame = ctk.CTkFrame(self.recipe_view_frame)
+            cat_frame.pack(fill="x", padx=10, pady=5)
+            
+            cat_label = ctk.CTkLabel(
+                cat_frame,
                 text="Categories: " + ", ".join(recipe["categories"]),
-                style="Recipe.TLabel"
+                font=("Arial", 12)
             )
-            cat_label.pack(anchor=tk.W)
-        
-        if recipe["tags"]:
-            tags_label = ttk.Label(
-                tags_frame,
-                text="Tags: " + ", ".join(recipe["tags"]),
-                style="Recipe.TLabel"
-            )
-            tags_label.pack(anchor=tk.W)
+            cat_label.pack(anchor="w")
         
         # Separator
-        ttk.Separator(content_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, padx=10, pady=10)
+        separator = ctk.CTkFrame(self.recipe_view_frame, height=1, fg_color=("gray80", "gray30"))
+        separator.pack(fill="x", padx=10, pady=10)
         
         # Ingredients section
         if recipe["ingredients"]:
-            ing_frame = ttk.LabelFrame(content_frame, text="Ingredients", style="Recipe.TFrame")
-            ing_frame.pack(fill=tk.X, padx=10, pady=5)
+            ing_frame = ctk.CTkFrame(self.recipe_view_frame)
+            ing_frame.pack(fill="x", padx=10, pady=5)
+            
+            ing_title = ctk.CTkLabel(ing_frame, text="Ingredients", font=("Arial", 16, "bold"))
+            ing_title.pack(anchor="w", padx=10, pady=5)
             
             for ingredient in recipe["ingredients"]:
-                quantity = ingredient["quantity"] or ""
-                unit = ingredient["unit"] or ""
-                name = ingredient["name"]
-                notes = ingredient["notes"] or ""
-                
-                ing_text = f"{quantity} {unit} {name}"
-                if notes:
-                    ing_text += f" ({notes})"
-                
-                ing_label = ttk.Label(
+                ing_label = ctk.CTkLabel(
                     ing_frame,
-                    text=ing_text,
-                    style="Recipe.TLabel"
+                    text=ingredient,
+                    anchor="w"
                 )
-                ing_label.pack(anchor=tk.W, padx=10, pady=2)
+                ing_label.pack(fill="x", padx=10, pady=2)
         
         # Instructions section
         if recipe["instructions"]:
-            instr_frame = ttk.LabelFrame(content_frame, text="Instructions", style="Recipe.TFrame")
-            instr_frame.pack(fill=tk.X, padx=10, pady=5)
+            instr_frame = ctk.CTkFrame(self.recipe_view_frame)
+            instr_frame.pack(fill="x", padx=10, pady=5)
             
-            instr_text = ttk.Label(
+            instr_title = ctk.CTkLabel(instr_frame, text="Instructions", font=("Arial", 16, "bold"))
+            instr_title.pack(anchor="w", padx=10, pady=5)
+            
+            instr_text = ctk.CTkLabel(
                 instr_frame,
                 text=recipe["instructions"],
-                style="Recipe.TLabel",
                 wraplength=600,
-                justify=tk.LEFT
+                justify="left"
             )
-            instr_text.pack(fill=tk.X, padx=10, pady=5)
-        
-        # Notes section
-        if recipe["notes"]:
-            notes_frame = ttk.LabelFrame(content_frame, text="Notes", style="Recipe.TFrame")
-            notes_frame.pack(fill=tk.X, padx=10, pady=5)
-            
-            notes_text = ttk.Label(
-                notes_frame,
-                text=recipe["notes"],
-                style="Recipe.TLabel",
-                wraplength=600,
-                justify=tk.LEFT
-            )
-            notes_text.pack(fill=tk.X, padx=10, pady=5)
-        
-        # Source section
-        if recipe["source"]:
-            source_frame = ttk.Frame(content_frame, style="Recipe.TFrame")
-            source_frame.pack(fill=tk.X, padx=10, pady=5)
-            
-            source_label = ttk.Label(
-                source_frame,
-                text=f"Source: {recipe['source']}",
-                style="Recipe.TLabel"
-            )
-            source_label.pack(anchor=tk.W, padx=10, pady=2)
+            instr_text.pack(fill="x", padx=10, pady=5)
     
     def edit_recipe(self, recipe_id):
-        """
-        Edit an existing recipe.
-        
-        Args:
-            recipe_id (int): ID of the recipe to edit
-        """
+        """Edit an existing recipe."""
         # Get recipe data
         recipe = self.db.get_recipe(recipe_id)
         
@@ -1868,291 +1337,161 @@ class RecipeApp:
         for widget in self.recipe_view_frame.winfo_children():
             widget.destroy()
         
-        # Hide recipe view and show recipe form
+        # Hide recipe view and show recipe form frame
         self.recipe_view_frame.pack_forget()
-        self.recipe_form_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        # Clear form
+        # Clear form frame and recreate as scrollable frame
         for widget in self.recipe_form_frame.winfo_children():
             widget.destroy()
         
-        # Create form header
-        form_header = ttk.Frame(self.recipe_form_frame)
-        form_header.pack(fill=tk.X, pady=5)
+        self.recipe_form_frame = ctk.CTkScrollableFrame(
+            self.recipe_detail_frame,
+            label_text=f"Edit Recipe: {recipe['name']}"
+        )
+        self.recipe_form_frame.pack(fill="both", expand=True, padx=5, pady=5)
         
-        heading = ttk.Label(form_header, text=f"Edit Recipe: {recipe['name']}", style="Heading.TLabel")
-        heading.pack(side=tk.LEFT, padx=5)
+        # IMPORTANT: Reset the ingredients list to empty
+        self.ingredients = []
         
-        # Create form content in a scrollable canvas
-        canvas = tk.Canvas(self.recipe_form_frame, borderwidth=0, background="#f5f5f5")
-        scrollbar = ttk.Scrollbar(self.recipe_form_frame, orient=tk.VERTICAL, command=canvas.yview)
-        
-        form_inner = ttk.Frame(canvas)
-        
-        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        canvas.configure(yscrollcommand=scrollbar.set)
-        canvas_window = canvas.create_window((0, 0), window=form_inner, anchor=tk.NW)
-        
-        def on_form_configure(event):
-            canvas.configure(scrollregion=canvas.bbox(tk.ALL))
-            canvas.itemconfig(canvas_window, width=event.width)
-        
-        form_inner.bind("<Configure>", on_form_configure)
-        canvas.bind("<Configure>", lambda e: canvas.itemconfig(canvas_window, width=e.width))
+        # Create form header with large title
+        heading = ctk.CTkLabel(
+            self.recipe_form_frame, 
+            text=f"Edit Recipe: {recipe['name']}", 
+            font=("Arial", 20, "bold")
+        )
+        heading.pack(pady=10)
         
         # Basic info section
-        basic_frame = ttk.LabelFrame(form_inner, text="Basic Information")
-        basic_frame.pack(fill=tk.X, padx=10, pady=5)
+        basic_frame = ctk.CTkFrame(self.recipe_form_frame)
+        basic_frame.pack(fill="x", padx=10, pady=5)
+        
+        basic_label = ctk.CTkLabel(basic_frame, text="Basic Information", font=("Arial", 14, "bold"))
+        basic_label.pack(anchor="w", padx=5, pady=5)
         
         # Name field
-        name_frame = ttk.Frame(basic_frame)
-        name_frame.pack(fill=tk.X, padx=5, pady=5)
+        name_frame = ctk.CTkFrame(basic_frame)
+        name_frame.pack(fill="x", padx=5, pady=5)
         
-        name_label = ttk.Label(name_frame, text="Recipe Name:")
-        name_label.pack(side=tk.LEFT, padx=5)
+        name_label = ctk.CTkLabel(name_frame, text="Recipe Name:")
+        name_label.pack(side="left", padx=5)
         
-        self.recipe_name_var = tk.StringVar(value=recipe["name"])
-        name_entry = ttk.Entry(name_frame, textvariable=self.recipe_name_var, width=40)
-        name_entry.pack(side=tk.LEFT, padx=5)
+        self.recipe_name_var = ctk.StringVar(value=recipe["name"])
+        name_entry = ctk.CTkEntry(name_frame, textvariable=self.recipe_name_var, width=300)
+        name_entry.pack(side="left", padx=5)
         
         # Favorite checkbox
-        self.recipe_favorite_var = tk.BooleanVar(value=recipe["favorite"])
-        favorite_check = ttk.Checkbutton(name_frame, text="Favorite", variable=self.recipe_favorite_var)
-        favorite_check.pack(side=tk.LEFT, padx=5)
+        self.recipe_favorite_var = ctk.BooleanVar(value=recipe["favorite"])
+        favorite_check = ctk.CTkCheckBox(name_frame, text="Favorite", variable=self.recipe_favorite_var)
+        favorite_check.pack(side="left", padx=5)
         
-        # Description field
-        desc_frame = ttk.Frame(basic_frame)
-        desc_frame.pack(fill=tk.X, padx=5, pady=5)
+        # Categories section
+        cat_frame = ctk.CTkFrame(self.recipe_form_frame)
+        cat_frame.pack(fill="x", padx=10, pady=10)
         
-        desc_label = ttk.Label(desc_frame, text="Description:")
-        desc_label.pack(anchor=tk.W, padx=5)
+        cat_label = ctk.CTkLabel(cat_frame, text="Categories", font=("Arial", 14, "bold"))
+        cat_label.pack(anchor="w", padx=5, pady=5)
         
-        self.recipe_desc_var = tk.StringVar(value=recipe["description"])
-        desc_entry = ttk.Entry(desc_frame, textvariable=self.recipe_desc_var, width=60)
-        desc_entry.pack(fill=tk.X, padx=5, pady=2)
-        
-        # Time and servings frame
-        time_frame = ttk.Frame(basic_frame)
-        time_frame.pack(fill=tk.X, padx=5, pady=5)
-        
-        # Prep time
-        prep_label = ttk.Label(time_frame, text="Prep Time (min):")
-        prep_label.pack(side=tk.LEFT, padx=5)
-        
-        self.prep_time_var = tk.StringVar(value=recipe["prep_time"])
-        prep_entry = ttk.Entry(time_frame, textvariable=self.prep_time_var, width=5)
-        prep_entry.pack(side=tk.LEFT, padx=2)
-        
-        # Cook time
-        cook_label = ttk.Label(time_frame, text="Cook Time (min):")
-        cook_label.pack(side=tk.LEFT, padx=5)
-        
-        self.cook_time_var = tk.StringVar(value=recipe["cook_time"])
-        cook_entry = ttk.Entry(time_frame, textvariable=self.cook_time_var, width=5)
-        cook_entry.pack(side=tk.LEFT, padx=2)
-        
-        # Servings
-        servings_label = ttk.Label(time_frame, text="Servings:")
-        servings_label.pack(side=tk.LEFT, padx=5)
-        
-        self.servings_var = tk.StringVar(value=recipe["servings"])
-        servings_entry = ttk.Entry(time_frame, textvariable=self.servings_var, width=5)
-        servings_entry.pack(side=tk.LEFT, padx=2)
-        
-        # Difficulty
-        difficulty_label = ttk.Label(time_frame, text="Difficulty:")
-        difficulty_label.pack(side=tk.LEFT, padx=5)
-        
-        self.difficulty_var = tk.StringVar(value=recipe["difficulty"])
-        difficulty_combo = ttk.Combobox(time_frame, textvariable=self.difficulty_var, 
-                                      values=["Easy", "Medium", "Hard"], width=8, state="readonly")
-        difficulty_combo.pack(side=tk.LEFT, padx=2)
-        
-        # Source
-        source_frame = ttk.Frame(basic_frame)
-        source_frame.pack(fill=tk.X, padx=5, pady=5)
-        
-        source_label = ttk.Label(source_frame, text="Source:")
-        source_label.pack(side=tk.LEFT, padx=5)
-        
-        self.source_var = tk.StringVar(value=recipe["source"])
-        source_entry = ttk.Entry(source_frame, textvariable=self.source_var, width=40)
-        source_entry.pack(side=tk.LEFT, padx=5)
-        
-        # Categories and Tags section
-        cat_tag_frame = ttk.LabelFrame(form_inner, text="Categories and Tags")
-        cat_tag_frame.pack(fill=tk.X, padx=10, pady=5)
-        
-        # Categories
-        cat_frame = ttk.Frame(cat_tag_frame)
-        cat_frame.pack(fill=tk.X, padx=5, pady=5)
-        
-        cat_label = ttk.Label(cat_frame, text="Categories:")
-        cat_label.pack(side=tk.LEFT, padx=5)
+        # Replace the tk.Listbox with a scrollable frame containing checkboxes
+        self.categories_scrollable = ctk.CTkScrollableFrame(cat_frame, height=150)
+        self.categories_scrollable.pack(fill="x", padx=5, pady=5)
         
         # Get all categories
         all_categories = self.db.get_all_categories()
         
-        # Categories listbox with scrollbar
-        cat_listbox_frame = ttk.Frame(cat_frame)
-        cat_listbox_frame.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
+        # Dictionary to store category checkbox variables
+        self.category_vars = {}
         
-        self.cat_listbox = tk.Listbox(cat_listbox_frame, selectmode=tk.MULTIPLE, height=4)
-        cat_scrollbar = ttk.Scrollbar(cat_listbox_frame, orient=tk.VERTICAL, command=self.cat_listbox.yview)
-        
-        self.cat_listbox.configure(yscrollcommand=cat_scrollbar.set)
-        
-        self.cat_listbox.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        cat_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        # Populate categories and select current ones
-        for i, category in enumerate(all_categories):
-            self.cat_listbox.insert(tk.END, category)
-            if category in recipe["categories"]:
-                self.cat_listbox.selection_set(i)
+        # Create a checkbox for each category, check those that belong to the recipe
+        for category in all_categories:
+            var = ctk.BooleanVar(value=category in recipe["categories"])
+            self.category_vars[category] = var
+            checkbox = ctk.CTkCheckBox(self.categories_scrollable, text=category, variable=var)
+            checkbox.pack(anchor="w", padx=5, pady=2)
         
         # New category button
-        new_cat_btn = ttk.Button(cat_frame, text="New Category", command=self.add_new_category)
-        new_cat_btn.pack(side=tk.LEFT, padx=5)
-        
-        # Tags
-        tag_frame = ttk.Frame(cat_tag_frame)
-        tag_frame.pack(fill=tk.X, padx=5, pady=5)
-        
-        tag_label = ttk.Label(tag_frame, text="Tags:")
-        tag_label.pack(side=tk.LEFT, padx=5)
-        
-        # Get all tags
-        all_tags = self.db.get_all_tags()
-        
-        # Tags listbox with scrollbar
-        tag_listbox_frame = ttk.Frame(tag_frame)
-        tag_listbox_frame.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
-        
-        self.tag_listbox = tk.Listbox(tag_listbox_frame, selectmode=tk.MULTIPLE, height=4)
-        tag_scrollbar = ttk.Scrollbar(tag_listbox_frame, orient=tk.VERTICAL, command=self.tag_listbox.yview)
-        
-        self.tag_listbox.configure(yscrollcommand=tag_scrollbar.set)
-        
-        self.tag_listbox.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        tag_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        # Populate tags and select current ones
-        for i, tag in enumerate(all_tags):
-            self.tag_listbox.insert(tk.END, tag)
-            if tag in recipe["tags"]:
-                self.tag_listbox.selection_set(i)
-        
-        # New tag button
-        new_tag_btn = ttk.Button(tag_frame, text="New Tag", command=self.add_new_tag)
-        new_tag_btn.pack(side=tk.LEFT, padx=5)
+        new_cat_btn = ctk.CTkButton(
+            cat_selection_frame, 
+            text="New Category", 
+            command=self.add_new_category
+        )
+        new_cat_btn.pack(side="left", padx=5)
         
         # Ingredients section
-        ingredients_frame = ttk.LabelFrame(form_inner, text="Ingredients")
-        ingredients_frame.pack(fill=tk.X, padx=10, pady=5)
+        ingredients_frame = ctk.CTkFrame(self.recipe_form_frame)
+        ingredients_frame.pack(fill="x", padx=10, pady=10)
+        
+        ing_label = ctk.CTkLabel(ingredients_frame, text="Ingredients", font=("Arial", 14, "bold"))
+        ing_label.pack(anchor="w", padx=5, pady=5)
         
         # Ingredients list
-        self.ingredients_list_frame = ttk.Frame(ingredients_frame)
-        self.ingredients_list_frame.pack(fill=tk.X, padx=5, pady=5)
-        
-        # Ingredient list will be populated here
-        self.ingredients = []  # Store ingredient data
+        self.ingredients_list_frame = ctk.CTkFrame(ingredients_frame)
+        self.ingredients_list_frame.pack(fill="x", padx=5, pady=5)
         
         # Add existing ingredients
-        for ingredient in recipe["ingredients"]:
-            self.add_ingredient_row(
-                quantity=ingredient["quantity"],
-                unit=ingredient["unit"],
-                name=ingredient["name"],
-                notes=ingredient["notes"]
-            )
+        for ingredient_text in recipe["ingredients"]:
+            self.add_ingredient_row_with_text(ingredient_text)
         
         # Add ingredient button
-        add_ing_btn = ttk.Button(ingredients_frame, text="Add Ingredient", command=self.add_ingredient_row)
+        add_ing_btn = ctk.CTkButton(
+            ingredients_frame, 
+            text="Add Ingredient", 
+            command=self.add_ingredient_row
+        )
         add_ing_btn.pack(padx=5, pady=5)
         
         # Instructions section
-        instr_frame = ttk.LabelFrame(form_inner, text="Instructions")
-        instr_frame.pack(fill=tk.X, padx=10, pady=5)
+        instr_frame = ctk.CTkFrame(self.recipe_form_frame)
+        instr_frame.pack(fill="x", padx=10, pady=10)
         
-        self.instructions_text = ScrolledText(instr_frame, height=10, width=50, wrap=tk.WORD)
-        self.instructions_text.pack(fill=tk.X, padx=5, pady=5)
-        self.instructions_text.insert(tk.END, recipe["instructions"])
+        instr_label = ctk.CTkLabel(instr_frame, text="Instructions", font=("Arial", 14, "bold"))
+        instr_label.pack(anchor="w", padx=5, pady=5)
         
-        # Notes section
-        notes_frame = ttk.LabelFrame(form_inner, text="Notes")
-        notes_frame.pack(fill=tk.X, padx=10, pady=5)
-        
-        self.notes_text = ScrolledText(notes_frame, height=5, width=50, wrap=tk.WORD)
-        self.notes_text.pack(fill=tk.X, padx=5, pady=5)
-        self.notes_text.insert(tk.END, recipe["notes"])
+        self.instructions_text = ctk.CTkTextbox(instr_frame, height=150, wrap="word")
+        self.instructions_text.pack(fill="x", padx=5, pady=5)
+        self.instructions_text.insert("1.0", recipe["instructions"])
         
         # Button frame
-        btn_frame = ttk.Frame(form_inner)
-        btn_frame.pack(fill=tk.X, padx=10, pady=10)
+        btn_frame = ctk.CTkFrame(self.recipe_form_frame)
+        btn_frame.pack(fill="x", padx=10, pady=10)
         
         # Save button
-        save_btn = ttk.Button(
+        save_btn = ctk.CTkButton(
             btn_frame, 
             text="Save Changes", 
             command=lambda: self.save_recipe_changes(recipe_id)
         )
-        save_btn.pack(side=tk.LEFT, padx=5)
+        save_btn.pack(side="left", padx=5)
         
         # Cancel button
-        cancel_btn = ttk.Button(btn_frame, text="Cancel", command=self.cancel_recipe_edit)
-        cancel_btn.pack(side=tk.LEFT, padx=5)
+        cancel_btn = ctk.CTkButton(
+            btn_frame, 
+            text="Cancel", 
+            command=self.cancel_recipe_edit
+        )
+        cancel_btn.pack(side="left", padx=5)
     
-    def add_ingredient_row(self, quantity="", unit="", name="", notes=""):
-        """
-        Add a new ingredient row to the form.
+    def add_ingredient_row_with_text(self, ingredient_text):
+        """Add a new ingredient row with provided text."""
+        row_frame = ctk.CTkFrame(self.ingredients_list_frame)
+        row_frame.pack(fill="x", padx=5, pady=2)
         
-        Args:
-            quantity (float, optional): Ingredient quantity
-            unit (str, optional): Ingredient unit
-            name (str, optional): Ingredient name
-            notes (str, optional): Ingredient notes
-        """
-        row_frame = ttk.Frame(self.ingredients_list_frame)
-        row_frame.pack(fill=tk.X, padx=5, pady=2)
-        
-        # Quantity field
-        quantity_var = tk.StringVar(value=quantity)
-        quantity_entry = ttk.Entry(row_frame, textvariable=quantity_var, width=6)
-        quantity_entry.pack(side=tk.LEFT, padx=2)
-        
-        # Unit field
-        unit_var = tk.StringVar(value=unit)
-        unit_entry = ttk.Entry(row_frame, textvariable=unit_var, width=8)
-        unit_entry.pack(side=tk.LEFT, padx=2)
-        
-        # Ingredient name field
-        name_var = tk.StringVar(value=name)
-        name_entry = ttk.Entry(row_frame, textvariable=name_var, width=30)
-        name_entry.pack(side=tk.LEFT, padx=2)
-        
-        # Notes field
-        notes_var = tk.StringVar(value=notes)
-        notes_entry = ttk.Entry(row_frame, textvariable=notes_var, width=20)
-        notes_entry.pack(side=tk.LEFT, padx=2)
+        # Ingredient text field
+        ingredient_var = ctk.StringVar(value=ingredient_text)
+        ingredient_entry = ctk.CTkEntry(row_frame, textvariable=ingredient_var, width=300)
+        ingredient_entry.pack(side="left", padx=2, fill="x", expand=True)
         
         # Remove button
         def remove_ingredient():
             row_frame.destroy()
             self.ingredients.remove(ingredient_data)
         
-        remove_btn = ttk.Button(row_frame, text="X", width=2, command=remove_ingredient)
-        remove_btn.pack(side=tk.LEFT, padx=2)
+        remove_btn = ctk.CTkButton(row_frame, text="X", width=30, command=remove_ingredient)
+        remove_btn.pack(side="left", padx=2)
         
         # Store the ingredient data
         ingredient_data = {
             "row_frame": row_frame,
-            "quantity_var": quantity_var,
-            "unit_var": unit_var,
-            "name_var": name_var,
-            "notes_var": notes_var
+            "ingredient_var": ingredient_var
         }
         
         self.ingredients.append(ingredient_data)
@@ -2160,12 +1499,7 @@ class RecipeApp:
         return ingredient_data
     
     def save_recipe_changes(self, recipe_id):
-        """
-        Save changes to an existing recipe.
-        
-        Args:
-            recipe_id (int): ID of the recipe to update
-        """
+        """Save changes to an existing recipe."""
         # Validate required fields
         if not self.recipe_name_var.get().strip():
             messagebox.showerror("Error", "Recipe name is required")
@@ -2174,53 +1508,76 @@ class RecipeApp:
         # Gather recipe data
         recipe_data = {
             "name": self.recipe_name_var.get().strip(),
-            "description": self.recipe_desc_var.get().strip(),
-            "instructions": self.instructions_text.get("1.0", tk.END).strip(),
-            "prep_time": int(self.prep_time_var.get() or 0),
-            "cook_time": int(self.cook_time_var.get() or 0),
-            "servings": int(self.servings_var.get() or 1),
-            "difficulty": self.difficulty_var.get(),
-            "source": self.source_var.get().strip(),
-            "notes": self.notes_text.get("1.0", tk.END).strip(),
+            "instructions": self.instructions_text.get("1.0", "end-1c").strip(),
             "favorite": self.recipe_favorite_var.get(),
             "categories": [self.cat_listbox.get(idx) for idx in self.cat_listbox.curselection()],
-            "tags": [self.tag_listbox.get(idx) for idx in self.tag_listbox.curselection()],
             "ingredients": []
         }
         
         # Process ingredients
         for ingredient in self.ingredients:
             # Skip empty ingredients
-            if not ingredient["name_var"].get().strip():
+            if not ingredient["ingredient_var"].get().strip():
                 continue
                 
-            ingredient_data = {
-                "name": ingredient["name_var"].get().strip(),
-                "quantity": float(ingredient["quantity_var"].get() or 0),
-                "unit": ingredient["unit_var"].get().strip(),
-                "notes": ingredient["notes_var"].get().strip()
-            }
-            recipe_data["ingredients"].append(ingredient_data)
+            ingredient_text = ingredient["ingredient_var"].get().strip()
+            recipe_data["ingredients"].append(ingredient_text)
         
         # Update recipe in database
         success = self.db.update_recipe(recipe_id, recipe_data)
         
         if success:
             messagebox.showinfo("Success", "Recipe updated successfully!")
+            # Reset ingredients list after successful save
+            self.ingredients = []
             # Load the recipe detail view
             self.load_recipe_detail(recipe_id)
             # Refresh recipe list
             self.load_recipe_list()
         else:
             messagebox.showerror("Error", "Failed to update recipe")
+
+    def save_new_recipe(self):
+        """Save a new recipe to the database."""
+        # Validate required fields
+        if not self.recipe_name_var.get().strip():
+            messagebox.showerror("Error", "Recipe name is required")
+            return
+        
+        # Gather recipe data
+        recipe_data = {
+            "name": self.recipe_name_var.get().strip(),
+            "instructions": self.instructions_text.get("1.0", tk.END).strip(),
+            "favorite": self.recipe_favorite_var.get(),
+            "categories": [self.cat_listbox.get(idx) for idx in self.cat_listbox.curselection()],
+            "ingredients": []
+        }
+        
+        # Process ingredients
+        for ingredient in self.ingredients:
+            # Skip empty ingredients
+            if not ingredient["ingredient_var"].get().strip():
+                continue
+                
+            ingredient_text = ingredient["ingredient_var"].get().strip()
+            recipe_data["ingredients"].append(ingredient_text)
+        
+        # Add recipe to database
+        recipe_id = self.db.add_recipe(recipe_data)
+        
+        if recipe_id:
+            messagebox.showinfo("Success", "Recipe added successfully!")
+            # Reset ingredients list after successful save
+            self.ingredients = []
+            # Load the recipe detail view
+            self.load_recipe_detail(recipe_id)
+            # Refresh recipe list
+            self.load_recipe_list()
+        else:
+            messagebox.showerror("Error", "Failed to add recipe")
     
     def delete_recipe(self, recipe_id):
-        """
-        Delete a recipe.
-        
-        Args:
-            recipe_id (int): ID of the recipe to delete
-        """
+        """Delete a recipe."""
         # Confirm deletion
         confirm = messagebox.askyesno(
             "Confirm Deletion", 
@@ -2243,18 +1600,21 @@ class RecipeApp:
             for widget in self.recipe_view_frame.winfo_children():
                 widget.destroy()
             
+            # Reset ingredients list
+            self.ingredients = []
+            
             # Show welcome message
-            welcome_label = ttk.Label(
+            welcome_label = ctk.CTkLabel(
                 self.recipe_view_frame, 
                 text="Welcome to Recipe Organization System",
-                style="RecipeTitle.TLabel"
+                font=("Arial", 20, "bold")
             )
             welcome_label.pack(pady=20)
             
-            instruction_label = ttk.Label(
+            instruction_label = ctk.CTkLabel(
                 self.recipe_view_frame,
                 text="Select a recipe from the list on the left or create a new recipe.",
-                style="Recipe.TLabel"
+                font=("Arial", 14)
             )
             instruction_label.pack(pady=10)
             
@@ -2263,84 +1623,308 @@ class RecipeApp:
         else:
             messagebox.showerror("Error", "Failed to delete recipe.")
     
+    def add_recipe_to_shopping_list(self, recipe_id):
+        """Add a recipe's ingredients to a shopping list."""
+        import tkinter as tk
+        
+        # Get recipe data
+        recipe = self.db.get_recipe(recipe_id)
+        
+        if not recipe:
+            messagebox.showerror("Error", "Recipe not found")
+            return
+        
+        # Get existing shopping lists
+        existing_lists = self.db.get_shopping_lists()
+        
+        # Create options: create new list or add to existing
+        options = ["Create new shopping list"]
+        
+        # Add existing lists as options if there are any
+        if existing_lists:
+            options.append("Add to existing shopping list")
+            for shopping_list in existing_lists:
+                options.append(f"Add to: {shopping_list['name']}")
+        
+        # Create a dialog with customtkinter
+        dialog = ctk.CTkToplevel(self.root)
+        dialog.title("Add to Shopping List")
+        dialog.geometry("400x300")
+        dialog.minsize(300, 200)
+        dialog.grab_set()  # Make dialog modal
+        
+        # Create frame
+        frame = ctk.CTkFrame(dialog, fg_color=("gray95", "gray15"))
+        frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Label
+        label = ctk.CTkLabel(frame, text="Choose an option:", font=("Arial", 12))
+        label.pack(pady=5)
+        
+        # Listbox with scrollbar - using regular tkinter Listbox
+        listbox_frame = ctk.CTkFrame(frame)
+        listbox_frame.pack(fill="both", expand=True, pady=5)
+        
+        listbox = tk.Listbox(listbox_frame)
+        scrollbar = ctk.CTkScrollbar(listbox_frame, command=listbox.yview)
+        
+        listbox.configure(yscrollcommand=scrollbar.set)
+        
+        listbox.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+        
+        # Populate options
+        for option in options:
+            listbox.insert("end", option)
+        
+        # Select first option by default
+        listbox.selection_set(0)
+        
+        # Result variable
+        result = [None]  # Use a list so it can be modified from inside the function
+        
+        # Function to handle option selection
+        def on_ok():
+            selected_indices = listbox.curselection()
+            if not selected_indices:
+                messagebox.showwarning("No Selection", "Please select an option.")
+                return
+            
+            result[0] = options[selected_indices[0]]
+            dialog.destroy()
+        
+        # Button frame
+        btn_frame = ctk.CTkFrame(frame)
+        btn_frame.pack(fill="x", pady=10)
+        
+        # OK button
+        ok_btn = ctk.CTkButton(btn_frame, text="OK", command=on_ok)
+        ok_btn.pack(side="left", padx=5)
+        
+        # Cancel button
+        cancel_btn = ctk.CTkButton(
+            btn_frame, 
+            text="Cancel", 
+            command=dialog.destroy,
+            fg_color="gray40",
+            hover_color="gray30"
+        )
+        cancel_btn.pack(side="left", padx=5)
+        
+        # Wait for dialog to close
+        dialog.wait_window()
+        
+        # If no selection, return
+        if result[0] is None:
+            return
+        
+        choice = result[0]
+        
+        if choice == "Create new shopping list":
+            # Create new shopping list
+            list_name = simpledialog.askstring(
+                "New Shopping List",
+                "Enter a name for the new shopping list:",
+                initialvalue=f"{recipe['name']} ingredients"
+            )
+            
+            if not list_name:
+                return
+            
+            shopping_list_id = self.db.create_shopping_list(list_name)
+            
+            # Add ingredients
+            for ingredient in recipe["ingredients"]:
+                self.db.add_shopping_list_item(shopping_list_id, ingredient)
+            
+            messagebox.showinfo("Success", f"Created new shopping list: {list_name}")
+            
+        elif choice == "Add to existing shopping list":
+            # Create another dialog to select the shopping list
+            list_dialog = ctk.CTkToplevel(self.root)
+            list_dialog.title("Select Shopping List")
+            list_dialog.geometry("400x300")
+            list_dialog.minsize(300, 200)
+            list_dialog.grab_set()  # Make dialog modal
+            
+            # Create frame
+            list_frame = ctk.CTkFrame(list_dialog)
+            list_frame.pack(fill="both", expand=True, padx=10, pady=10)
+            
+            # Label
+            list_label = ctk.CTkLabel(list_frame, text="Choose a shopping list:")
+            list_label.pack(pady=5)
+            
+            # Listbox with scrollbar
+            list_listbox_frame = ctk.CTkFrame(list_frame)
+            list_listbox_frame.pack(fill="both", expand=True, pady=5)
+            
+            list_listbox = tk.Listbox(list_listbox_frame)
+            list_scrollbar = ctk.CTkScrollbar(list_listbox_frame, command=list_listbox.yview)
+            
+            list_listbox.configure(yscrollcommand=list_scrollbar.set)
+            
+            list_listbox.pack(side="left", fill="both", expand=True)
+            list_scrollbar.pack(side="right", fill="y")
+            
+            # Populate options
+            for shopping_list in existing_lists:
+                list_listbox.insert("end", shopping_list["name"])
+            
+            # Select first option by default
+            if existing_lists:
+                list_listbox.selection_set(0)
+            
+            # Result variable
+            list_result = [None]  # Use a list so it can be modified from inside function
+            
+            # Function to handle list selection
+            def on_list_ok():
+                selected_indices = list_listbox.curselection()
+                if not selected_indices:
+                    messagebox.showwarning("No Selection", "Please select a shopping list.")
+                    return
+                
+                list_result[0] = selected_indices[0]
+                list_dialog.destroy()
+            
+            # Button frame
+            list_btn_frame = ctk.CTkFrame(list_frame)
+            list_btn_frame.pack(fill="x", pady=10)
+            
+            # OK button
+            list_ok_btn = ctk.CTkButton(list_btn_frame, text="OK", command=on_list_ok)
+            list_ok_btn.pack(side="left", padx=5)
+            
+            # Cancel button
+            list_cancel_btn = ctk.CTkButton(
+                list_btn_frame, 
+                text="Cancel", 
+                command=list_dialog.destroy,
+                fg_color="gray40",
+                hover_color="gray30"
+            )
+            list_cancel_btn.pack(side="left", padx=5)
+            
+            # Wait for dialog to close
+            list_dialog.wait_window()
+            
+            # If no selection, return
+            if list_result[0] is None:
+                return
+            
+            # Get selected shopping list
+            selected_index = list_result[0]
+            selected_list = existing_lists[selected_index]
+            shopping_list_id = selected_list["id"]
+            
+            # Add ingredients
+            for ingredient in recipe["ingredients"]:
+                self.db.add_shopping_list_item(shopping_list_id, ingredient)
+            
+            messagebox.showinfo("Success", f"Added ingredients to: {selected_list['name']}")
+        
+        elif choice.startswith("Add to: "):
+            # Extract list name and find matching shopping list
+            list_name = choice[8:]  # Remove "Add to: " prefix
+            
+            # Find the shopping list with matching name
+            shopping_list_id = None
+            for sl in existing_lists:
+                if sl["name"] == list_name:
+                    shopping_list_id = sl["id"]
+                    break
+            
+            if not shopping_list_id:
+                # Debug information
+                print(f"Looking for list: '{list_name}'")
+                print("Available lists:")
+                for sl in existing_lists:
+                    print(f"  '{sl['name']}'")
+                    
+                messagebox.showerror("Error", "Shopping list not found")
+                return
+            
+            # Add ingredients
+            for ingredient in recipe["ingredients"]:
+                self.db.add_shopping_list_item(shopping_list_id, ingredient)
+            
+            messagebox.showinfo("Success", f"Added ingredients to: {list_name}")
+        
+        # Refresh shopping lists
+        self.load_shopping_lists()
+        
+        # Switch to shopping lists tab
+        self.notebook.set("Shopping Lists")
+
     def setup_shopping_tab(self):
         """Set up the shopping lists tab."""
         # Create splitview: list on left, detail on right
-        self.shopping_paned = ttk.PanedWindow(self.shopping_tab, orient=tk.HORIZONTAL)
-        self.shopping_paned.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        self.shopping_frame = ctk.CTkFrame(self.shopping_tab)
+        self.shopping_frame.pack(fill="both", expand=True, padx=5, pady=5)
         
         # Create shopping list frame
-        self.shopping_list_frame = ttk.Frame(self.shopping_paned)
-        self.shopping_paned.add(self.shopping_list_frame, weight=1)
+        self.shopping_list_frame = ctk.CTkFrame(self.shopping_frame, width=300)
+        self.shopping_list_frame.pack(side="left", fill="y", padx=5, pady=5)
         
         # Create shopping detail frame
-        self.shopping_detail_frame = ttk.Frame(self.shopping_paned)
-        self.shopping_paned.add(self.shopping_detail_frame, weight=2)
+        self.shopping_detail_frame = ctk.CTkFrame(self.shopping_frame)
+        self.shopping_detail_frame.pack(side="right", fill="both", expand=True, padx=5, pady=5)
         
         # Set up shopping list section
         self.setup_shopping_list()
         
         # Set up shopping detail section
         self.setup_shopping_detail()
-    
+
     def setup_shopping_list(self):
         """Set up the shopping list part of the shopping tab."""
         # Create list frame header
-        list_header = ttk.Frame(self.shopping_list_frame)
-        list_header.pack(fill=tk.X, padx=5, pady=5)
+        list_header = ctk.CTkFrame(self.shopping_list_frame)
+        list_header.pack(fill="x", padx=5, pady=5)
         
         # Create heading
-        heading = ttk.Label(list_header, text="Shopping Lists", style="Heading.TLabel")
-        heading.pack(side=tk.LEFT, padx=5)
+        heading = ctk.CTkLabel(
+            list_header, 
+            text="Shopping Lists", 
+            font=("Arial", 16, "bold")
+        )
+        heading.pack(side="left", padx=5)
         
         # Create shopping list buttons
-        btn_frame = ttk.Frame(self.shopping_list_frame)
-        btn_frame.pack(fill=tk.X, padx=5, pady=5)
+        btn_frame = ctk.CTkFrame(self.shopping_list_frame)
+        btn_frame.pack(fill="x", padx=5, pady=5)
         
         # New shopping list button
-        new_list_btn = ttk.Button(btn_frame, text="New Shopping List", command=self.new_shopping_list)
-        new_list_btn.pack(side=tk.LEFT, padx=5)
+        new_list_btn = ctk.CTkButton(
+            btn_frame, 
+            text="New Shopping List", 
+            command=self.new_shopping_list
+        )
+        new_list_btn.pack(side="left", padx=5)
         
         # Generate from recipes button
-        gen_list_btn = ttk.Button(btn_frame, text="Generate from Recipes", command=self.generate_from_recipes)
-        gen_list_btn.pack(side=tk.LEFT, padx=5)
-        
-        # Create canvas for scrollable shopping list
-        self.shopping_canvas = tk.Canvas(self.shopping_list_frame, borderwidth=0, background="#ffffff")
-        self.shopping_canvas.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        
-        # Add scrollbar
-        shopping_scrollbar = ttk.Scrollbar(self.shopping_canvas, orient=tk.VERTICAL, command=self.shopping_canvas.yview)
-        self.shopping_canvas.configure(yscrollcommand=shopping_scrollbar.set)
-        shopping_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        # Create frame for shopping list items inside canvas
-        self.shopping_list_inner = ttk.Frame(self.shopping_canvas, style="ShoppingList.TFrame")
-        self.shopping_canvas_window = self.shopping_canvas.create_window(
-            (0, 0), window=self.shopping_list_inner, anchor=tk.NW, tags="self.shopping_list_inner"
+        gen_list_btn = ctk.CTkButton(
+            btn_frame, 
+            text="Generate from Recipes", 
+            command=self.generate_from_recipes
         )
+        gen_list_btn.pack(side="left", padx=5)
         
-        # Configure canvas to resize with frame
-        self.shopping_list_inner.bind("<Configure>", self.on_shopping_list_configure)
-        self.shopping_canvas.bind("<Configure>", self.on_shopping_canvas_configure)
+        # Create scrollable frame for shopping lists instead of canvas
+        self.shopping_lists_scrollable = ctk.CTkScrollableFrame(
+            self.shopping_list_frame,
+            label_text="Your Shopping Lists"
+        )
+        self.shopping_lists_scrollable.pack(fill="both", expand=True, padx=5, pady=5)
         
         # Load shopping lists
         self.load_shopping_lists()
-    
-    def on_shopping_list_configure(self, event):
-        """Handle shopping list inner frame configuration."""
-        # Update the scrollregion to encompass the inner frame
-        self.shopping_canvas.configure(scrollregion=self.shopping_canvas.bbox(tk.ALL))
-    
-    def on_shopping_canvas_configure(self, event):
-        """Handle shopping canvas configuration."""
-        # Update the width of the inner frame to fill the canvas
-        self.shopping_canvas.itemconfig(self.shopping_canvas_window, width=event.width)
-    
+
     def load_shopping_lists(self):
         """Load shopping lists into the list view."""
         # Clear existing items
-        for widget in self.shopping_list_inner.winfo_children():
+        for widget in self.shopping_lists_scrollable.winfo_children():
             widget.destroy()
         
         # Get shopping lists
@@ -2348,75 +1932,17 @@ class RecipeApp:
         
         if not shopping_lists:
             # Show no lists message
-            no_lists = ttk.Label(self.shopping_list_inner, text="No shopping lists found", style="ShoppingListItem.TLabel")
-            no_lists.pack(fill=tk.X, padx=10, pady=10)
+            no_lists = ctk.CTkLabel(
+                self.shopping_lists_scrollable, 
+                text="No shopping lists found",
+                font=("Arial", 12)
+            )
+            no_lists.pack(fill="x", padx=10, pady=10)
         else:
             # Add shopping list items
             for shopping_list in shopping_lists:
                 self.create_shopping_list_item(shopping_list)
-    
-    def create_shopping_list_item(self, shopping_list):
-        """Create a shopping list item widget."""
-        # Create frame for shopping list item
-        list_frame = ttk.Frame(self.shopping_list_inner, style="ShoppingListItem.TFrame")
-        list_frame.pack(fill=tk.X, padx=2, pady=2)
-        list_frame.bind("<Button-1>", lambda e, l=shopping_list: self.load_shopping_list_detail(l["id"]))
-        
-        # Create list item content
-        name_label = ttk.Label(
-            list_frame, 
-            text=shopping_list["name"],
-            style="ShoppingListItem.TLabel",
-            font=("Arial", 11, "bold")
-        )
-        name_label.pack(anchor=tk.W, padx=5, pady=2)
-        name_label.bind("<Button-1>", lambda e, l=shopping_list: self.load_shopping_list_detail(l["id"]))
-        
-        # Add date if available
-        if shopping_list["date_created"]:
-            try:
-                date_obj = datetime.datetime.strptime(shopping_list["date_created"], "%Y-%m-%d %H:%M:%S")
-                date_str = date_obj.strftime("%b %d, %Y")
-            except:
-                date_str = shopping_list["date_created"]
-                
-            date_label = ttk.Label(list_frame, text=date_str, style="ShoppingListItem.TLabel")
-            date_label.pack(anchor=tk.W, padx=5)
-            date_label.bind("<Button-1>", lambda e, l=shopping_list: self.load_shopping_list_detail(l["id"]))
-        
-        # Add notes if available
-        if shopping_list["notes"]:
-            notes = shopping_list["notes"]
-            if len(notes) > 60:
-                notes = notes[:57] + "..."
-            notes_label = ttk.Label(list_frame, text=notes, style="ShoppingListItem.TLabel")
-            notes_label.pack(anchor=tk.W, padx=5, pady=2)
-            notes_label.bind("<Button-1>", lambda e, l=shopping_list: self.load_shopping_list_detail(l["id"]))
-        
-        # Add separator
-        ttk.Separator(self.shopping_list_inner, orient=tk.HORIZONTAL).pack(fill=tk.X, padx=5, pady=3)
-    
-    def setup_shopping_detail(self):
-        """Set up the shopping list detail part of the shopping tab."""
-        # Create view for shopping list details
-        self.shopping_view_frame = ttk.Frame(self.shopping_detail_frame, style="Recipe.TFrame")
-        self.shopping_view_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        
-        # Initially show a welcome message in detail view
-        welcome_label = ttk.Label(
-            self.shopping_view_frame, 
-            text="Shopping Lists",
-            style="RecipeTitle.TLabel"
-        )
-        welcome_label.pack(pady=20)
-        
-        instruction_label = ttk.Label(
-            self.shopping_view_frame,
-            text="Select a shopping list from the left or create a new one.",
-            style="Recipe.TLabel"
-        )
-        instruction_label.pack(pady=10)
-    
+
     def new_shopping_list(self):
         """Create a new shopping list."""
         # Prompt for name
@@ -2430,89 +1956,81 @@ class RecipeApp:
         # Refresh lists and load the new one
         self.load_shopping_lists()
         self.load_shopping_list_detail(shopping_list_id)
+
+    def create_shopping_list_item(self, shopping_list):
+        # Create frame for shopping list item
+        list_frame = ctk.CTkFrame(self.shopping_lists_scrollable)
+        list_frame.pack(fill="x", padx=5, pady=5)
+        list_frame.shopping_list_id = shopping_list["id"]
+        list_frame.bind("<Button-1>", lambda e, l=shopping_list: self.select_shopping_list(l["id"], list_frame))
+        
+        # Create list item content
+        name_label = ctk.CTkLabel(
+            list_frame, 
+            text=shopping_list["name"],
+            font=("Arial", 14, "bold")
+        )
+        name_label.pack(anchor="w", padx=5, pady=2)
+        name_label.bind("<Button-1>", lambda e, l=shopping_list: self.select_shopping_list(l["id"], list_frame))
     
-    def generate_from_recipes(self):
-        """Generate a shopping list from recipes."""
-        # Create recipe selection dialog
-        dialog = tk.Toplevel(self.root)
-        dialog.title("Select Recipes")
-        dialog.geometry("400x500")
-        dialog.minsize(400, 400)
-        dialog.grab_set()  # Make dialog modal
         
-        # Create frame for recipe list
-        recipe_frame = ttk.Frame(dialog)
-        recipe_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+        # Add date if available
+        if shopping_list["date_created"]:
+            try:
+                date_obj = datetime.datetime.strptime(shopping_list["date_created"], "%Y-%m-%d %H:%M:%S")
+                date_str = date_obj.strftime("%b %d, %Y")
+            except:
+                date_str = shopping_list["date_created"]
+                
+            date_label = ctk.CTkLabel(
+                list_frame, 
+                text=date_str,
+                text_color=("gray50", "gray70")  # Subdued color
+            )
+            date_label.pack(anchor="w", padx=5)
+            date_label.bind("<Button-1>", lambda e, l=shopping_list: self.load_shopping_list_detail(l["id"]))
         
-        # Create heading
-        heading = ttk.Label(recipe_frame, text="Select Recipes for Shopping List", style="Heading.TLabel")
-        heading.pack(pady=10)
-        
-        # Create listbox with scrollbar
-        list_frame = ttk.Frame(recipe_frame)
-        list_frame.pack(fill=tk.BOTH, expand=True, pady=5)
-        
-        recipe_listbox = tk.Listbox(list_frame, selectmode=tk.MULTIPLE)
-        recipe_scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=recipe_listbox.yview)
-        
-        recipe_listbox.configure(yscrollcommand=recipe_scrollbar.set)
-        
-        recipe_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        recipe_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        # Get all recipes
-        recipes = self.db.get_all_recipes()
-        
-        # Populate listbox with recipes
-        for recipe in recipes:
-            recipe_listbox.insert(tk.END, recipe["name"])
-        
-        # Store recipe IDs for later
-        recipe_ids = [recipe["id"] for recipe in recipes]
-        
-        # Name field
-        name_frame = ttk.Frame(recipe_frame)
-        name_frame.pack(fill=tk.X, pady=5)
-        
-        name_label = ttk.Label(name_frame, text="Shopping List Name:")
-        name_label.pack(side=tk.LEFT, padx=5)
-        
-        name_var = tk.StringVar()
-        name_var.set(f"Shopping List ({datetime.date.today().strftime('%Y-%m-%d')})")
-        name_entry = ttk.Entry(name_frame, textvariable=name_var, width=30)
-        name_entry.pack(side=tk.LEFT, padx=5, fill=tk.X, expand=True)
-        
-        # Button frame
-        btn_frame = ttk.Frame(recipe_frame)
-        btn_frame.pack(fill=tk.X, pady=10)
-        
-        # Function to generate list and close dialog
-        def create_list():
-            selected_indices = recipe_listbox.curselection()
-            
-            if not selected_indices:
-                messagebox.showwarning("No Recipes Selected", "Please select at least one recipe.")
-                return
-            
-            selected_recipe_ids = [recipe_ids[idx] for idx in selected_indices]
-            name = name_var.get().strip() or f"Shopping List ({datetime.date.today().strftime('%Y-%m-%d')})"
-            
-            shopping_list_id = self.db.generate_shopping_list_from_recipes(selected_recipe_ids, name)
-            
-            dialog.destroy()
-            
-            # Refresh lists and load the new one
-            self.load_shopping_lists()
-            self.load_shopping_list_detail(shopping_list_id)
-        
-        # Create generate button
-        generate_btn = ttk.Button(btn_frame, text="Generate Shopping List", command=create_list)
-        generate_btn.pack(side=tk.LEFT, padx=5)
-        
-        # Create cancel button
-        cancel_btn = ttk.Button(btn_frame, text="Cancel", command=dialog.destroy)
-        cancel_btn.pack(side=tk.LEFT, padx=5)
+        # Add separator
+        separator = ctk.CTkFrame(self.shopping_lists_scrollable, height=1, fg_color=("gray80", "gray30"))
+        separator.pack(fill="x", padx=10, pady=2)
     
+    def select_shopping_list(self, shopping_list_id, selected_frame):
+        """Handle shopping list selection and highlighting."""
+        # Load the shopping list detail
+        self.load_shopping_list_detail(shopping_list_id)
+        
+        # Remove highlight from all shopping list frames
+        for child in self.shopping_lists_scrollable.winfo_children():
+            if isinstance(child, ctk.CTkFrame) and hasattr(child, 'shopping_list_id'):
+                child.configure(fg_color=("gray90", "gray20"))  # Reset to default color
+        
+        # Highlight the selected frame
+        selected_frame.configure(fg_color=("lightblue", "navy"))  # Highlight color
+
+    def setup_shopping_detail(self):
+        """Set up the shopping list detail part of the shopping tab."""
+        # Create view for shopping list details
+        self.shopping_view_frame = ctk.CTkScrollableFrame(
+            self.shopping_detail_frame,
+            label_text="Shopping List Details"
+        )
+        self.shopping_view_frame.pack(fill="both", expand=True, padx=5, pady=5)
+        
+        # Initially show a welcome message in detail view
+        welcome_label = ctk.CTkLabel(
+            self.shopping_view_frame, 
+            text="Shopping Lists",
+            font=("Arial", 20, "bold")
+        )
+        welcome_label.pack(pady=20)
+        
+        instruction_label = ctk.CTkLabel(
+            self.shopping_view_frame,
+            text="Select a shopping list from the left or create a new one.",
+            font=("Arial", 14)
+        )
+        instruction_label.pack(pady=10)
+
     def load_shopping_list_detail(self, shopping_list_id):
         """Load shopping list details into the detail view."""
         # Clear current view
@@ -2530,24 +2048,38 @@ class RecipeApp:
         self.current_shopping_list_id = shopping_list_id
         
         # Create header frame
-        header_frame = ttk.Frame(self.shopping_view_frame)
-        header_frame.pack(fill=tk.X, padx=5, pady=5)
+        header_frame = ctk.CTkFrame(self.shopping_view_frame)
+        header_frame.pack(fill="x", padx=10, pady=10)
         
         # Shopping list title
-        title = ttk.Label(header_frame, text=shopping_list["name"], style="RecipeTitle.TLabel")
-        title.pack(side=tk.LEFT, padx=5)
+        title = ctk.CTkLabel(
+            header_frame, 
+            text=shopping_list["name"], 
+            font=("Arial", 18, "bold")
+        )
+        title.pack(side="left", padx=5)
         
         # Actions frame on right
-        actions_frame = ttk.Frame(header_frame)
-        actions_frame.pack(side=tk.RIGHT, padx=5)
+        actions_frame = ctk.CTkFrame(header_frame)
+        actions_frame.pack(side="right", padx=5)
         
-        # Print button
-        print_btn = ttk.Button(actions_frame, text="Print", command=lambda: self.print_shopping_list(shopping_list_id))
-        print_btn.pack(side=tk.LEFT, padx=2)
+        # Add item button
+        add_item_btn = ctk.CTkButton(
+            actions_frame, 
+            text="Add Item", 
+            command=lambda: self.add_shopping_list_item(shopping_list_id)
+        )
+        add_item_btn.pack(side="left", padx=2)
         
         # Delete button
-        delete_btn = ttk.Button(actions_frame, text="Delete", command=lambda: self.delete_shopping_list(shopping_list_id))
-        delete_btn.pack(side=tk.LEFT, padx=2)
+        delete_btn = ctk.CTkButton(
+            actions_frame, 
+            text="Delete List", 
+            command=lambda: self.delete_shopping_list(shopping_list_id),
+            fg_color="darkred",
+            hover_color="red"
+        )
+        delete_btn.pack(side="left", padx=2)
         
         # Created date if available
         if shopping_list["date_created"]:
@@ -2557,142 +2089,94 @@ class RecipeApp:
             except:
                 date_str = shopping_list["date_created"]
                 
-            date_label = ttk.Label(self.shopping_view_frame, text=f"Created: {date_str}", style="Recipe.TLabel")
-            date_label.pack(anchor=tk.W, padx=10, pady=2)
+            date_label = ctk.CTkLabel(
+                self.shopping_view_frame, 
+                text=f"Created: {date_str}",
+                text_color=("gray50", "gray70")
+            )
+            date_label.pack(anchor="w", padx=10, pady=2)
         
-        # Notes if available
-        if shopping_list["notes"]:
-            notes_label = ttk.Label(self.shopping_view_frame, text=f"Notes: {shopping_list['notes']}", style="Recipe.TLabel", wraplength=500)
-            notes_label.pack(anchor=tk.W, padx=10, pady=2)
+        # Create items container
+        items_frame = ctk.CTkFrame(self.shopping_view_frame)
+        items_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
-        # Create canvas for scrollable items list
-        canvas = tk.Canvas(self.shopping_view_frame, borderwidth=0, background="#ffffff")
-        scrollbar = ttk.Scrollbar(self.shopping_view_frame, orient=tk.VERTICAL, command=canvas.yview)
-        
-        inner_frame = ttk.Frame(canvas, style="ShoppingList.TFrame")
-        
-        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5, pady=5)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        
-        canvas.configure(yscrollcommand=scrollbar.set)
-        canvas_window = canvas.create_window((0, 0), window=inner_frame, anchor=tk.NW)
-        
-        def on_frame_configure(event):
-            canvas.configure(scrollregion=canvas.bbox(tk.ALL))
-            canvas.itemconfig(canvas_window, width=event.width)
-        
-        inner_frame.bind("<Configure>", on_frame_configure)
-        canvas.bind("<Configure>", lambda e: canvas.itemconfig(canvas_window, width=e.width))
-        
-        # Group items by category
-        categorized_items = {}
-        
-        for item in shopping_list["items"]:
-            category = item["category"] or "Uncategorized"
-            if category not in categorized_items:
-                categorized_items[category] = []
-            categorized_items[category].append(item)
-        
-        # Create items by category
-        for category, items in categorized_items.items():
-            # Category heading
-            category_label = ttk.Label(inner_frame, text=category, style="ShoppingListSection.TLabel")
-            category_label.pack(anchor=tk.W, padx=10, pady=5)
-            
-            # Add items
-            for item in items:
-                self.create_shopping_item_row(inner_frame, item)
-            
-            # Add separator after each category
-            ttk.Separator(inner_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, padx=10, pady=5)
-    
+        # Add items
+        if not shopping_list["items"]:
+            no_items = ctk.CTkLabel(
+                items_frame, 
+                text="No items in this shopping list",
+                font=("Arial", 12)
+            )
+            no_items.pack(fill="x", padx=10, pady=10)
+        else:
+            for item in shopping_list["items"]:
+                self.create_shopping_item_row(items_frame, item)
+
     def create_shopping_item_row(self, parent, item):
         """Create a shopping list item row."""
-        row_frame = ttk.Frame(parent, style="ShoppingListItem.TFrame")
-        row_frame.pack(fill=tk.X, padx=5, pady=2)
+        row_frame = ctk.CTkFrame(parent)
+        row_frame.pack(fill="x", padx=5, pady=2)
         
         # Checkbox
-        checked_var = tk.BooleanVar(value=item["checked"])
+        checked_var = ctk.BooleanVar(value=item["checked"])
         
         def update_checked():
             self.db.update_shopping_list_item(item["id"], checked=checked_var.get())
         
-        check = ttk.Checkbutton(row_frame, variable=checked_var, command=update_checked)
-        check.pack(side=tk.LEFT)
-        
-        # Item name with quantity and unit
-        quantity_str = f"{item['quantity']} " if item["quantity"] else ""
-        unit_str = f"{item['unit']} " if item["unit"] else ""
-        
-        item_text = f"{quantity_str}{unit_str}{item['name']}"
-        if item["notes"]:
-            item_text += f" ({item['notes']})"
-        
-        item_label = ttk.Label(row_frame, text=item_text, style="ShoppingListItem.TLabel")
-        item_label.pack(side=tk.LEFT, padx=5)
-    
-    def print_shopping_list(self, shopping_list_id):
-        """Print a shopping list."""
-        # Get shopping list details
-        shopping_list = self.db.get_shopping_list(shopping_list_id)
-        
-        if not shopping_list:
-            messagebox.showerror("Error", "Shopping list not found")
-            return
-        
-        # Create print dialog
-        filename = filedialog.asksaveasfilename(
-            defaultextension=".txt",
-            filetypes=[("Text file", "*.txt")],
-            initialfile=f"{shopping_list['name']}.txt"
+        check = ctk.CTkCheckBox(
+            row_frame, 
+            text="",
+            variable=checked_var, 
+            command=update_checked
         )
+        check.pack(side="left")
         
-        if not filename:
+        # Item text (editable)
+        item_var = ctk.StringVar(value=item["item_text"])
+        item_entry = ctk.CTkEntry(
+            row_frame, 
+            textvariable=item_var, 
+            width=300
+        )
+        item_entry.pack(side="left", padx=5, fill="x", expand=True)
+        
+        # Update function for the entry
+        def update_item_text(event=None):
+            new_text = item_var.get().strip()
+            if new_text:
+                self.db.update_shopping_list_item(item["id"], item_text=new_text)
+        
+        # Bind update to Return key and focus out event
+        item_entry.bind("<Return>", update_item_text)
+        item_entry.bind("<FocusOut>", update_item_text)
+        
+        # Delete button
+        def delete_item():
+            self.db.delete_shopping_list_item(item["id"])
+            row_frame.destroy()
+        
+        delete_btn = ctk.CTkButton(
+            row_frame, 
+            text="X", 
+            width=30,
+            command=delete_item,
+            fg_color="darkred",
+            hover_color="red"
+        )
+        delete_btn.pack(side="left", padx=2)
+
+    def add_shopping_list_item(self, shopping_list_id):
+        """Add an item to the shopping list."""
+        # Prompt for item text
+        item_text = simpledialog.askstring("New Item", "Enter item text:")
+        if not item_text or not item_text.strip():
             return
         
-        # Generate text file
-        try:
-            with open(filename, 'w') as f:
-                # Write header
-                f.write(f"{shopping_list['name']}\n")
-                f.write(f"Created: {shopping_list['date_created']}\n")
-                if shopping_list["notes"]:
-                    f.write(f"Notes: {shopping_list['notes']}\n")
-                f.write("\n")
-                
-                # Group items by category
-                categorized_items = {}
-                
-                for item in shopping_list["items"]:
-                    category = item["category"] or "Uncategorized"
-                    if category not in categorized_items:
-                        categorized_items[category] = []
-                    categorized_items[category].append(item)
-                
-                # Write items by category
-                for category, items in categorized_items.items():
-                    f.write(f"{category}\n")
-                    f.write("-" * len(category) + "\n")
-                    
-                    for item in items:
-                        # Format item
-                        quantity_str = f"{item['quantity']} " if item["quantity"] else ""
-                        unit_str = f"{item['unit']} " if item["unit"] else ""
-                        
-                        item_text = f"{quantity_str}{unit_str}{item['name']}"
-                        if item["notes"]:
-                            item_text += f" ({item['notes']})"
-                        
-                        # Add checkbox
-                        checkbox = "[X]" if item["checked"] else "[ ]"
-                        
-                        f.write(f"{checkbox} {item_text}\n")
-                    
-                    f.write("\n")
-            
-            messagebox.showinfo("Success", f"Shopping list saved to {filename}")
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to save shopping list: {str(e)}")
+        # Add item to database
+        self.db.add_shopping_list_item(shopping_list_id, item_text.strip())
+        
+        # Reload shopping list
+        self.load_shopping_list_detail(shopping_list_id)
     
     def delete_shopping_list(self, shopping_list_id):
         """Delete a shopping list."""
@@ -2719,17 +2203,17 @@ class RecipeApp:
                 widget.destroy()
             
             # Show welcome message
-            welcome_label = ttk.Label(
+            welcome_label = ctk.CTkLabel(
                 self.shopping_view_frame, 
                 text="Shopping Lists",
-                style="RecipeTitle.TLabel"
+                font=("Arial", 20, "bold")
             )
             welcome_label.pack(pady=20)
             
-            instruction_label = ttk.Label(
+            instruction_label = ctk.CTkLabel(
                 self.shopping_view_frame,
                 text="Select a shopping list from the left or create a new one.",
-                style="Recipe.TLabel"
+                font=("Arial", 14)
             )
             instruction_label.pack(pady=10)
             
@@ -2738,231 +2222,623 @@ class RecipeApp:
         else:
             messagebox.showerror("Error", "Failed to delete shopping list.")
     
-    def setup_import_export_tab(self):
-        """Set up the import/export tab."""
-        # Create main frame
-        main_frame = ttk.Frame(self.import_export_tab)
-        main_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
+    def export_all_recipes(self):
+        """Export all recipes to a JSON file."""
+        import json
+        import tkinter.filedialog as filedialog
+        
+        # Get all recipes
+        recipes = self.db.export_recipes_to_json()
+        
+        if not recipes:
+            messagebox.showinfo("Export Recipes", "No recipes to export.")
+            return
+        
+        # Ask user for file location
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".json",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            title="Export Recipes"
+        )
+        
+        if not file_path:
+            return  # User cancelled
+        
+        try:
+            # Write to file
+            with open(file_path, 'w') as f:
+                json.dump(recipes, f, indent=4)
+            
+            messagebox.showinfo("Export Successful", f"Successfully exported {len(recipes)} recipes to {file_path}")
+        except Exception as e:
+            messagebox.showerror("Export Error", f"Error exporting recipes: {str(e)}")
+
+    def export_selected_recipes(self):
+        """Export selected recipes to a JSON file."""
+        import json
+        import tkinter as tk
+        
+        # Create a dialog to select recipes
+        dialog = ctk.CTkToplevel(self.root)
+        dialog.title("Select Recipes to Export")
+        dialog.geometry("400x500")
+        dialog.minsize(400, 400)
+        dialog.grab_set()  # Make dialog modal
+        
+        # Create frame for recipe list
+        recipe_frame = ctk.CTkFrame(dialog)
+        recipe_frame.pack(fill="both", expand=True, padx=10, pady=10)
         
         # Create heading
-        heading = ttk.Label(main_frame, text="Import and Export Recipes", style="Heading.TLabel")
+        heading = ctk.CTkLabel(
+            recipe_frame, 
+            text="Select Recipes to Export", 
+            font=("Arial", 16, "bold")
+        )
         heading.pack(pady=10)
         
-        # Create import section
-        import_frame = ttk.LabelFrame(main_frame, text="Import Recipe")
-        import_frame.pack(fill=tk.X, pady=10)
+        # Create listbox with scrollbar
+        list_frame = ctk.CTkFrame(recipe_frame)
+        list_frame.pack(fill="both", expand=True, pady=5)
         
-        import_label = ttk.Label(import_frame, text="Import a recipe from a JSON file.")
-        import_label.pack(padx=10, pady=5)
+        # Note: We keep tk.Listbox for multi-select functionality
+        recipe_listbox = tk.Listbox(list_frame, selectmode="multiple")
+        recipe_scrollbar = ctk.CTkScrollbar(list_frame, command=recipe_listbox.yview)
         
-        import_btn = ttk.Button(import_frame, text="Import from File", command=self.import_recipe)
-        import_btn.pack(padx=10, pady=10)
+        recipe_listbox.configure(yscrollcommand=recipe_scrollbar.set)
         
-        # Create export section
-        export_frame = ttk.LabelFrame(main_frame, text="Export Recipe")
-        export_frame.pack(fill=tk.X, pady=10)
-        
-        export_label = ttk.Label(export_frame, text="Select a recipe to export to a JSON file.")
-        export_label.pack(padx=10, pady=5)
+        recipe_listbox.pack(side="left", fill="both", expand=True)
+        recipe_scrollbar.pack(side="right", fill="y")
         
         # Get all recipes
         recipes = self.db.get_all_recipes()
-        recipe_names = [recipe["name"] for recipe in recipes]
         
-        # Store recipe IDs for use in export
-        self.export_recipe_ids = [recipe["id"] for recipe in recipes]
+        # Populate listbox with recipes
+        for recipe in recipes:
+            recipe_listbox.insert("end", recipe["name"])
         
-        # Recipe selection combobox
-        self.export_recipe_var = tk.StringVar()
-        export_combo = ttk.Combobox(export_frame, textvariable=self.export_recipe_var, 
-                                  values=recipe_names, width=40, state="readonly")
-        export_combo.pack(padx=10, pady=5)
+        # Store recipe IDs for later
+        recipe_ids = [recipe["id"] for recipe in recipes]
         
-        export_btn = ttk.Button(export_frame, text="Export to File", command=self.export_recipe)
-        export_btn.pack(padx=10, pady=10)
+        # Button frame
+        btn_frame = ctk.CTkFrame(recipe_frame)
+        btn_frame.pack(fill="x", pady=10)
         
-        # Create backup section
-        backup_frame = ttk.LabelFrame(main_frame, text="Database Backup")
-        backup_frame.pack(fill=tk.X, pady=10)
+        # Variable to store selected recipe IDs
+        selected_recipe_ids = []
         
-        backup_label = ttk.Label(backup_frame, text="Backup or restore the entire recipe database.")
-        backup_label.pack(padx=10, pady=5)
-        
-        backup_btn_frame = ttk.Frame(backup_frame)
-        backup_btn_frame.pack(padx=10, pady=10)
-        
-        backup_db_btn = ttk.Button(backup_btn_frame, text="Backup Database", command=self.backup_database)
-        backup_db_btn.pack(side=tk.LEFT, padx=5)
-        
-        restore_db_btn = ttk.Button(backup_btn_frame, text="Restore Database", command=self.restore_database)
-        restore_db_btn.pack(side=tk.LEFT, padx=5)
-    
-    def import_recipe(self):
-        """Import a recipe from a JSON file."""
-        # Open file dialog
-        filename = filedialog.askopenfilename(
-            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
-        )
-        
-        if not filename:
-            return
-        
-        try:
-            # Read the file
-            with open(filename, 'r') as f:
-                json_data = f.read()
+        # Function to handle recipe selection
+        def export_selected():
+            nonlocal selected_recipe_ids
+            selected_indices = recipe_listbox.curselection()
             
-            # Import recipe
-            recipe_id = self.db.import_recipe_from_json(json_data)
-            
-            if recipe_id:
-                messagebox.showinfo("Success", "Recipe imported successfully!")
-                # Refresh recipe list
-                self.load_recipe_list()
-                # Load the new recipe
-                self.load_recipe_detail(recipe_id)
-                # Switch to recipes tab
-                self.notebook.select(self.recipes_tab)
-            else:
-                messagebox.showerror("Error", "Failed to import recipe. Invalid format.")
-        except Exception as e:
-            messagebox.showerror("Error", f"Failed to import recipe: {str(e)}")
-    
-    def export_recipe(self):
-        """Export a recipe to a JSON file."""
-        # Check if a recipe is selected
-        recipe_name = self.export_recipe_var.get()
-        if not recipe_name:
-            messagebox.showwarning("No Recipe Selected", "Please select a recipe to export.")
-            return
-        
-        # Get the recipe ID
-        recipe_index = self.export_recipe_var.get()
-        if recipe_index not in self.export_recipe_ids:
-            for i, name in enumerate(self.export_recipe_var["values"]):
-                if name == recipe_name:
-                    recipe_id = self.export_recipe_ids[i]
-                    break
-            else:
-                messagebox.showerror("Error", "Recipe not found.")
+            if not selected_indices:
+                messagebox.showwarning("No Selection", "Please select at least one recipe.")
                 return
-        
-        # Open file dialog
-        filename = filedialog.asksaveasfilename(
-            defaultextension=".json",
-            filetypes=[("JSON files", "*.json")],
-            initialfile=f"{recipe_name}.json"
-        )
-        
-        if not filename:
-            return
-        
-        # Export recipe
-        json_data = self.db.export_recipe_to_json(recipe_id)
-        
-        if json_data:
-            try:
-                # Write to file
-                with open(filename, 'w') as f:
-                    f.write(json_data)
+            
+            selected_recipe_ids = [recipe_ids[idx] for idx in selected_indices]
+            dialog.destroy()
+            
+            # Continue with export process
+            if selected_recipe_ids:
+                # Ask user for file location
+                file_path = filedialog.asksaveasfilename(
+                    defaultextension=".json",
+                    filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+                    title="Export Selected Recipes"
+                )
                 
-                messagebox.showinfo("Success", f"Recipe exported to {filename}")
-            except Exception as e:
-                messagebox.showerror("Error", f"Failed to export recipe: {str(e)}")
-        else:
-            messagebox.showerror("Error", "Failed to export recipe.")
-    
-    def backup_database(self):
-        """Backup the entire database to a file."""
-        # Open file dialog
-        filename = filedialog.asksaveasfilename(
-            defaultextension=".db",
-            filetypes=[("Database files", "*.db"), ("All files", "*.*")],
-            initialfile=f"recipe_system_backup_{datetime.date.today().strftime('%Y%m%d')}.db"
-        )
+                if not file_path:
+                    return  # User cancelled
+                
+                try:
+                    # Export selected recipes
+                    recipes_to_export = self.db.export_recipes_to_json(selected_recipe_ids)
+                    
+                    # Write to file
+                    with open(file_path, 'w') as f:
+                        json.dump(recipes_to_export, f, indent=4)
+                    
+                    messagebox.showinfo(
+                        "Export Successful", 
+                        f"Successfully exported {len(recipes_to_export)} recipes to {file_path}"
+                    )
+                except Exception as e:
+                    messagebox.showerror("Export Error", f"Error exporting recipes: {str(e)}")
         
-        if not filename:
+        # Export button
+        export_btn = ctk.CTkButton(
+            btn_frame, 
+            text="Export Selected", 
+            command=export_selected
+        )
+        export_btn.pack(side="left", padx=5)
+        
+        # Cancel button
+        cancel_btn = ctk.CTkButton(
+            btn_frame, 
+            text="Cancel", 
+            command=dialog.destroy,
+            fg_color="gray40",
+            hover_color="gray30"
+        )
+        cancel_btn.pack(side="left", padx=5)
+        
+        # Wait for dialog to close
+        dialog.wait_window()
+
+    def setup_import_export_tab(self):
+        """Set up the import/export tab."""
+        # Create main container frame
+        main_frame = ctk.CTkFrame(self.import_export_tab)
+        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Create heading
+        heading = ctk.CTkLabel(
+            main_frame, 
+            text="Import and Export Data", 
+            font=("Arial", 20, "bold")
+        )
+        heading.pack(pady=10)
+        
+        # Create recipes section
+        recipes_frame = ctk.CTkFrame(main_frame)
+        recipes_frame.pack(fill="x", pady=10)
+        
+        recipes_label = ctk.CTkLabel(
+            recipes_frame, 
+            text="Recipes", 
+            font=("Arial", 16, "bold")
+        )
+        recipes_label.pack(anchor="w", padx=10, pady=5)
+        
+        # Recipes export options
+        recipe_export_frame = ctk.CTkFrame(recipes_frame)
+        recipe_export_frame.pack(fill="x", pady=5, padx=10)
+        
+        export_recipe_label = ctk.CTkLabel(recipe_export_frame, text="Export Recipes:")
+        export_recipe_label.pack(side="left", padx=5)
+        
+        # Export all recipes button
+        export_all_recipes_btn = ctk.CTkButton(
+            recipe_export_frame, 
+            text="Export All Recipes", 
+            command=self.export_all_recipes
+        )
+        export_all_recipes_btn.pack(side="left", padx=5)
+        
+        # Export selected recipes button
+        export_selected_recipes_btn = ctk.CTkButton(
+            recipe_export_frame, 
+            text="Export Selected Recipes", 
+            command=self.export_selected_recipes
+        )
+        export_selected_recipes_btn.pack(side="left", padx=5)
+        
+        # Recipes import options
+        recipe_import_frame = ctk.CTkFrame(recipes_frame)
+        recipe_import_frame.pack(fill="x", pady=5, padx=10)
+        
+        import_recipe_label = ctk.CTkLabel(recipe_import_frame, text="Import Recipes:")
+        import_recipe_label.pack(side="left", padx=5)
+        
+        import_recipes_btn = ctk.CTkButton(
+            recipe_import_frame, 
+            text="Import Recipes from JSON", 
+            command=self.import_recipes
+        )
+        import_recipes_btn.pack(side="left", padx=5)
+        
+        # Create shopping lists section
+        lists_frame = ctk.CTkFrame(main_frame)
+        lists_frame.pack(fill="x", pady=10)
+        
+        lists_label = ctk.CTkLabel(
+            lists_frame, 
+            text="Shopping Lists", 
+            font=("Arial", 16, "bold")
+        )
+        lists_label.pack(anchor="w", padx=10, pady=5)
+        
+        # Shopping lists export options
+        list_export_frame = ctk.CTkFrame(lists_frame)
+        list_export_frame.pack(fill="x", pady=5, padx=10)
+        
+        export_list_label = ctk.CTkLabel(list_export_frame, text="Export Shopping Lists:")
+        export_list_label.pack(side="left", padx=5)
+        
+        # Export all shopping lists button
+        export_all_lists_btn = ctk.CTkButton(
+            list_export_frame, 
+            text="Export All Shopping Lists", 
+            command=self.export_all_shopping_lists
+        )
+        export_all_lists_btn.pack(side="left", padx=5)
+        
+        # Export selected shopping lists button
+        export_selected_lists_btn = ctk.CTkButton(
+            list_export_frame, 
+            text="Export Selected Shopping Lists", 
+            command=self.export_selected_shopping_lists
+        )
+        export_selected_lists_btn.pack(side="left", padx=5)
+        
+        # Shopping lists import options
+        list_import_frame = ctk.CTkFrame(lists_frame)
+        list_import_frame.pack(fill="x", pady=5, padx=10)
+        
+        import_list_label = ctk.CTkLabel(list_import_frame, text="Import Shopping Lists:")
+        import_list_label.pack(side="left", padx=5)
+        
+        import_lists_btn = ctk.CTkButton(
+            list_import_frame, 
+            text="Import Shopping Lists from JSON", 
+            command=self.import_shopping_lists
+        )
+        import_lists_btn.pack(side="left", padx=5)
+        
+        # Information section
+        info_frame = ctk.CTkFrame(main_frame)
+        info_frame.pack(fill="x", pady=10)
+        
+        info_label = ctk.CTkLabel(
+            info_frame, 
+            text="Information", 
+            font=("Arial", 16, "bold")
+        )
+        info_label.pack(anchor="w", padx=10, pady=5)
+        
+        info_text = """
+        JSON Import/Export allows you to:
+        • Back up your recipes and shopping lists
+        • Share recipes with friends
+        • Import recipes from other sources
+        
+        Exported files are standard JSON format and can be edited with any text editor.
+        """
+        
+        info_content = ctk.CTkLabel(
+            info_frame, 
+            text=info_text,
+            justify="left", 
+            wraplength=600,
+            anchor="w"
+        )
+        info_content.pack(fill="x", padx=10, pady=5)
+
+    def generate_from_recipes(self):
+        """Generate a shopping list from recipes."""
+        import tkinter as tk
+        
+        # Create recipe selection dialog using CTk
+        dialog = ctk.CTkToplevel(self.root)
+        dialog.title("Select Recipes")
+        dialog.geometry("400x500")
+        dialog.minsize(400, 400)
+        dialog.grab_set()  # Make dialog modal
+        
+        # Create frame for recipe list
+        recipe_frame = ctk.CTkFrame(dialog)
+        recipe_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Create heading
+        heading = ctk.CTkLabel(
+            recipe_frame, 
+            text="Select Recipes for Shopping List", 
+            font=("Arial", 16, "bold")
+        )
+        heading.pack(pady=10)
+        
+        # Create listbox with scrollbar
+        list_frame = ctk.CTkFrame(recipe_frame)
+        list_frame.pack(fill="both", expand=True, pady=5)
+        
+        # We'll use a normal tk Listbox for multi-selection capability
+        recipe_listbox = tk.Listbox(list_frame, selectmode="multiple", height=15)
+        recipe_scrollbar = ctk.CTkScrollbar(list_frame, command=recipe_listbox.yview)
+        
+        recipe_listbox.configure(yscrollcommand=recipe_scrollbar.set)
+        
+        recipe_listbox.pack(side="left", fill="both", expand=True)
+        recipe_scrollbar.pack(side="right", fill="y")
+        
+        # Get all recipes
+        recipes = self.db.get_all_recipes()
+        
+        # Populate listbox with recipes
+        for recipe in recipes:
+            recipe_listbox.insert("end", recipe["name"])
+        
+        # Store recipe IDs for later
+        recipe_ids = [recipe["id"] for recipe in recipes]
+        
+        # Name field
+        name_frame = ctk.CTkFrame(recipe_frame)
+        name_frame.pack(fill="x", pady=5)
+        
+        name_label = ctk.CTkLabel(name_frame, text="Shopping List Name:")
+        name_label.pack(side="left", padx=5)
+        
+        name_var = ctk.StringVar()
+        name_var.set(f"Shopping List ({datetime.date.today().strftime('%Y-%m-%d')})")
+        name_entry = ctk.CTkEntry(name_frame, textvariable=name_var, width=200)
+        name_entry.pack(side="left", padx=5, fill="x", expand=True)
+        
+        # Button frame
+        btn_frame = ctk.CTkFrame(recipe_frame)
+        btn_frame.pack(fill="x", pady=10)
+        
+        # Function to generate list and close dialog
+        def create_list():
+            selected_indices = recipe_listbox.curselection()
+            
+            if not selected_indices:
+                messagebox.showwarning("No Selection", "Please select at least one recipe.")
+                return
+            
+            selected_recipe_ids = [recipe_ids[idx] for idx in selected_indices]
+            name = name_var.get().strip() or f"Shopping List ({datetime.date.today().strftime('%Y-%m-%d')})"
+            
+            shopping_list_id = self.db.generate_shopping_list_from_recipes(selected_recipe_ids, name)
+            
+            dialog.destroy()
+            
+            # Refresh lists and load the new one
+            self.load_shopping_lists()
+            self.load_shopping_list_detail(shopping_list_id)
+        
+        # Create generate button
+        generate_btn = ctk.CTkButton(
+            btn_frame, 
+            text="Generate Shopping List", 
+            command=create_list
+        )
+        generate_btn.pack(side="left", padx=5)
+        
+        # Create cancel button
+        cancel_btn = ctk.CTkButton(
+            btn_frame, 
+            text="Cancel", 
+            command=dialog.destroy,
+            fg_color="gray40",
+            hover_color="gray30"
+        )
+        cancel_btn.pack(side="left", padx=5)
+
+    def export_all_shopping_lists(self):
+        """Export all shopping lists to a JSON file."""
+        import json
+        import tkinter.filedialog as filedialog
+        
+        # Get all shopping lists
+        shopping_lists = self.db.export_shopping_lists_to_json()
+        
+        if not shopping_lists:
+            messagebox.showinfo("Export Shopping Lists", "No shopping lists to export.")
             return
         
+        # Ask user for file location
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=".json",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            title="Export Shopping Lists"
+        )
+        
+        if not file_path:
+            return  # User cancelled
+        
         try:
-            # Close database connection
-            self.db.close()
+            # Write to file
+            with open(file_path, 'w') as f:
+                json.dump(shopping_lists, f, indent=4)
             
-            # Copy database file
-            import shutil
-            shutil.copy2(self.db.db_path, filename)
-            
-            # Reopen database
-            self.db = RecipeDatabase()
-            
-            messagebox.showinfo("Success", f"Database backed up to {filename}")
+            messagebox.showinfo(
+                "Export Successful", 
+                f"Successfully exported {len(shopping_lists)} shopping lists to {file_path}"
+            )
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to backup database: {str(e)}")
-            # Ensure database is reopened even if error occurs
-            self.db = RecipeDatabase()
-    
-    def restore_database(self):
-        """Restore the database from a backup file."""
-        # Confirm restoration
-        confirm = messagebox.askyesno(
-            "Confirm Restore", 
-            "Restoring will replace your current database. This cannot be undone. Continue?"
+            messagebox.showerror("Export Error", f"Error exporting shopping lists: {str(e)}")
+
+    def export_selected_shopping_lists(self):
+        """Export selected shopping lists to a JSON file."""
+        import json
+        import tkinter as tk
+        
+        # Create a dialog to select shopping lists
+        dialog = ctk.CTkToplevel(self.root)
+        dialog.title("Select Shopping Lists to Export")
+        dialog.geometry("400x500")
+        dialog.minsize(400, 400)
+        dialog.grab_set()  # Make dialog modal
+        
+        # Create frame for shopping list selection
+        list_frame = ctk.CTkFrame(dialog)
+        list_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        
+        # Create heading
+        heading = ctk.CTkLabel(
+            list_frame, 
+            text="Select Shopping Lists to Export", 
+            font=("Arial", 16, "bold")
+        )
+        heading.pack(pady=10)
+        
+        # Create listbox with scrollbar
+        listbox_frame = ctk.CTkFrame(list_frame)
+        listbox_frame.pack(fill="both", expand=True, pady=5)
+        
+        # Continue to use tk.Listbox for multi-selection
+        list_listbox = tk.Listbox(listbox_frame, selectmode="multiple", height=15)
+        list_scrollbar = ctk.CTkScrollbar(listbox_frame, command=list_listbox.yview)
+        
+        list_listbox.configure(yscrollcommand=list_scrollbar.set)
+        
+        list_listbox.pack(side="left", fill="both", expand=True)
+        list_scrollbar.pack(side="right", fill="y")
+        
+        # Get all shopping lists
+        shopping_lists = self.db.get_shopping_lists()
+        
+        # Populate listbox with shopping lists
+        for shopping_list in shopping_lists:
+            list_listbox.insert("end", shopping_list["name"])
+        
+        # Store shopping list IDs for later
+        list_ids = [shopping_list["id"] for shopping_list in shopping_lists]
+        
+        # Button frame
+        btn_frame = ctk.CTkFrame(list_frame)
+        btn_frame.pack(fill="x", pady=10)
+        
+        # Variable to store selected shopping list IDs
+        selected_list_ids = []
+        
+        # Function to handle shopping list selection
+        def export_selected():
+            nonlocal selected_list_ids
+            selected_indices = list_listbox.curselection()
+            
+            if not selected_indices:
+                messagebox.showwarning("No Selection", "Please select at least one shopping list.")
+                return
+            
+            selected_list_ids = [list_ids[idx] for idx in selected_indices]
+            dialog.destroy()
+            
+            # Continue with export process
+            if selected_list_ids:
+                # Ask user for file location
+                file_path = filedialog.asksaveasfilename(
+                    defaultextension=".json",
+                    filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+                    title="Export Selected Shopping Lists"
+                )
+                
+                if not file_path:
+                    return  # User cancelled
+                
+                try:
+                    # Export selected shopping lists
+                    lists_to_export = self.db.export_shopping_lists_to_json(selected_list_ids)
+                    
+                    # Write to file
+                    with open(file_path, 'w') as f:
+                        json.dump(lists_to_export, f, indent=4)
+                    
+                    messagebox.showinfo(
+                        "Export Successful", 
+                        f"Successfully exported {len(lists_to_export)} shopping lists to {file_path}"
+                    )
+                except Exception as e:
+                    messagebox.showerror("Export Error", f"Error exporting shopping lists: {str(e)}")
+        
+        # Export button
+        export_btn = ctk.CTkButton(
+            btn_frame, 
+            text="Export Selected", 
+            command=export_selected
+        )
+        export_btn.pack(side="left", padx=5)
+        
+        # Cancel button
+        cancel_btn = ctk.CTkButton(
+            btn_frame, 
+            text="Cancel", 
+            command=dialog.destroy,
+            fg_color="gray40",
+            hover_color="gray30"
+        )
+        cancel_btn.pack(side="left", padx=5)
+        
+        # Wait for dialog to close
+        dialog.wait_window()
+
+    def import_recipes(self):
+        """Import recipes from a JSON file."""
+        import json
+        import tkinter.filedialog as filedialog
+        
+        # Ask user for file location
+        file_path = filedialog.askopenfilename(
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            title="Import Recipes"
         )
         
-        if not confirm:
-            return
-        
-        # Open file dialog
-        filename = filedialog.askopenfilename(
-            filetypes=[("Database files", "*.db"), ("All files", "*.*")]
-        )
-        
-        if not filename:
-            return
+        if not file_path:
+            return  # User cancelled
         
         try:
-            # Close database connection
-            self.db.close()
+            # Read from file
+            with open(file_path, 'r') as f:
+                recipes_data = json.load(f)
             
-            # Copy backup to database file
-            import shutil
-            shutil.copy2(filename, self.db.db_path)
+            # Validate data is a list
+            if not isinstance(recipes_data, list):
+                messagebox.showerror("Import Error", "Invalid JSON format. Expected a list of recipes.")
+                return
             
-            # Reopen database
-            self.db = RecipeDatabase()
+            # Import recipes
+            imported_count = 0
+            for recipe_data in recipes_data:
+                if self.db.import_recipe_from_json(recipe_data):
+                    imported_count += 1
             
-            messagebox.showinfo("Success", "Database restored successfully!")
+            messagebox.showinfo(
+                "Import Successful", 
+                f"Successfully imported {imported_count} of {len(recipes_data)} recipes."
+            )
             
-            # Refresh UI
+            # Refresh recipe list
             self.load_recipe_list()
+            
+        except json.JSONDecodeError:
+            messagebox.showerror("Import Error", "Invalid JSON file. Could not parse file content.")
+        except Exception as e:
+            messagebox.showerror("Import Error", f"Error importing recipes: {str(e)}")
+
+    def import_shopping_lists(self):
+        """Import shopping lists from a JSON file."""
+        import json
+        import tkinter.filedialog as filedialog
+        
+        # Ask user for file location
+        file_path = filedialog.askopenfilename(
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")],
+            title="Import Shopping Lists"
+        )
+        
+        if not file_path:
+            return  # User cancelled
+        
+        try:
+            # Read from file
+            with open(file_path, 'r') as f:
+                lists_data = json.load(f)
+            
+            # Validate data is a list
+            if not isinstance(lists_data, list):
+                messagebox.showerror("Import Error", "Invalid JSON format. Expected a list of shopping lists.")
+                return
+            
+            # Import shopping lists
+            imported_count = 0
+            for list_data in lists_data:
+                if self.db.import_shopping_list_from_json(list_data):
+                    imported_count += 1
+            
+            messagebox.showinfo(
+                "Import Successful", 
+                f"Successfully imported {imported_count} of {len(lists_data)} shopping lists."
+            )
+            
+            # Refresh shopping list
             self.load_shopping_lists()
             
-            # Clear detail views
-            for widget in self.recipe_view_frame.winfo_children():
-                widget.destroy()
-                
-            welcome_label = ttk.Label(
-                self.recipe_view_frame, 
-                text="Welcome to Recipe Organization System",
-                style="RecipeTitle.TLabel"
-            )
-            welcome_label.pack(pady=20)
-            
-            for widget in self.shopping_view_frame.winfo_children():
-                widget.destroy()
-                
-            shopping_welcome = ttk.Label(
-                self.shopping_view_frame, 
-                text="Shopping Lists",
-                style="RecipeTitle.TLabel"
-            )
-            shopping_welcome.pack(pady=20)
-            
+        except json.JSONDecodeError:
+            messagebox.showerror("Import Error", "Invalid JSON file. Could not parse file content.")
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to restore database: {str(e)}")
-            # Ensure database is reopened even if error occurs
-            self.db = RecipeDatabase()
-    
+            messagebox.showerror("Import Error", f"Error importing shopping lists: {str(e)}")
+
     def run(self):
         """Run the application."""
         # Create widgets
@@ -2974,10 +2850,12 @@ class RecipeApp:
         # Close database when app closes
         self.db.close()
 
-
 def main():
     """Main entry point for the application."""
-    root = tk.Tk()
+    ctk.set_appearance_mode("System")  # Use system theme
+    ctk.set_default_color_theme("blue")  # Blue theme
+    
+    root = ctk.CTk()  # Use CustomTkinter's root window
     app = RecipeApp(root)
     app.run()
 

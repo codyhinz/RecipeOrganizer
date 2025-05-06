@@ -1,0 +1,69 @@
+[
+    {
+      "name": "Classic Pancakes",
+      "instructions": "1. Mix the flour, sugar, baking powder, and salt.\n2. Add milk, egg, and melted butter.\n3. Heat a lightly oiled griddle over medium-high heat.\n4. Pour batter onto the griddle, using approximately 1/4 cup for each pancake.\n5. Cook until bubbles form and the edges are dry, then flip and cook until browned on the other side.",
+      "favorite": true,
+      "date_added": "2025-04-01 09:30:00",
+      "ingredients": [
+        "1 cup all-purpose flour",
+        "2 tablespoons sugar",
+        "2 teaspoons baking powder",
+        "1/2 teaspoon salt",
+        "1 cup milk",
+        "1 large egg",
+        "2 tablespoons melted butter"
+      ],
+      "categories": [
+        "Breakfast",
+        "Favorite"
+      ]
+    },
+    {
+      "name": "Chicken Noodle Soup",
+      "instructions": "1. Heat oil in a large pot over medium heat.\n2. Add onion, carrot, and celery; cook until softened.\n3. Add garlic and cook for 30 seconds.\n4. Pour in chicken broth and add chicken, bay leaves, thyme, salt, and pepper.\n5. Bring to a boil, then reduce heat and simmer for 20 minutes.\n6. Remove chicken and shred with two forks.\n7. Return chicken to pot and add noodles.\n8. Cook until noodles are tender, about 6-8 minutes.\n9. Adjust seasoning and serve hot.",
+      "favorite": true,
+      "date_added": "2025-04-22 17:45:00",
+      "ingredients": [
+        "1 tablespoon olive oil",
+        "1 onion, diced",
+        "2 carrots, diced",
+        "2 celery stalks, diced",
+        "2 cloves garlic, minced",
+        "8 cups chicken broth",
+        "1 pound boneless, skinless chicken breasts",
+        "2 bay leaves",
+        "1/2 teaspoon dried thyme",
+        "2 cups egg noodles",
+        "Salt and pepper to taste",
+        "Fresh parsley, chopped (optional)"
+      ],
+      "categories": [
+        "Soup",
+        "Main Course",
+        "Comfort Food"
+      ]
+    },
+    {
+      "name": "Greek Salad",
+      "instructions": "1. Combine tomatoes, cucumber, red bell pepper, and red onion in a large bowl.\n2. Sprinkle with salt and oregano.\n3. Add olives and feta cheese.\n4. In a small bowl, whisk together olive oil, lemon juice, and black pepper.\n5. Pour dressing over salad and gently toss.\n6. Serve immediately or refrigerate for up to 1 hour to let flavors meld.",
+      "favorite": false,
+      "date_added": "2025-04-20 11:30:00",
+      "ingredients": [
+        "4 large tomatoes, cut into chunks",
+        "1 cucumber, sliced",
+        "1 red bell pepper, seeded and chunked",
+        "1/2 red onion, thinly sliced",
+        "1/2 cup kalamata olives",
+        "1 cup feta cheese, crumbled",
+        "1/4 cup olive oil",
+        "2 tablespoons lemon juice",
+        "1 teaspoon dried oregano",
+        "Salt and black pepper to taste"
+      ],
+      "categories": [
+        "Salad",
+        "Side Dish",
+        "Mediterranean"
+      ]
+    }
+  ]
